@@ -83,8 +83,8 @@ def compare_map(  # pragma: no cover - requires model weights and a dataset
     """Validate ``weights`` on ``data`` twice: unsplit, then split at ``cut``.
 
     Args:
-        weights: path to a ``.pt`` checkpoint (e.g. ``teacher_best.pt``).
-        data: ultralytics dataset YAML (e.g. ``kitting_v4.yaml``).
+        weights: path to a ``.pt`` checkpoint.
+        data: ultralytics dataset YAML.
         cut: last edge layer; defaults to the end of the backbone.
         transport: wire simulation (e.g. ``Int8Transport()``); ``None`` is lossless.
         val_kwargs: forwarded to ``YOLO.val`` (``batch``, ``split``, ...).

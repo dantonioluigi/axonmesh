@@ -70,8 +70,8 @@ def deserialize_detections(payload: bytes) -> list[Detection]:
 class ConfidenceEMADrift:
     """Drift heuristic: EMA of frame confidence sinking below a threshold.
 
-    Frames with no detections count as confidence 0 — a kitting station that
-    suddenly sees nothing is drifting, not idle. ``warmup`` frames are needed
+    Frames with no detections count as confidence 0 — an industrial station
+    that suddenly sees nothing is more likely drifting than idle. ``warmup`` frames are needed
     before the detector may fire, so a cold start is not misread as drift.
     """
 
