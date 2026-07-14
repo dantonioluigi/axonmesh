@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Experiment artifacts — never commit weights, datasets or results
+*.pt
+*.onnx
+*.engine
+datasets/
+runs/
+results/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
