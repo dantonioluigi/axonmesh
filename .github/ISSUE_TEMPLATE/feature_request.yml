@@ -1,0 +1,19 @@
+name: Feature request
+description: Propose an improvement or a new measurement angle
+labels: [enhancement]
+body:
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should be added and what question it answers.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope check
+      description: >
+        This repo measures split-computing feasibility. The adaptive policy is
+        simulated; the Kubernetes operator is out of scope until the numbers
+        justify it (see docs/experiment-protocol.md). Say why this fits.
