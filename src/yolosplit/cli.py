@@ -209,6 +209,56 @@ def _cmd_stream(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_plan(args: argparse.Namespace) -> int:
+    from .planner import budget_bytes_per_frame, enumerate_cuts, plan_cut
+
+    options = enumerate_cuts(_load_model(args.model), imgsz=args.imgsz)
+    budget = budget_bytes_per_frame(args.bandwidth_mbps, args.fps)
+    choice = plan_cut(options, budget, transport=args.transport)
+
+    print(
+        f"budget: {_kb(budget)} KB/frame "
+        f"({args.bandwidth_mbps} Mbps @ {args.fps} fps, transport={args.transport})\n"
+    )
+    print(f"{'cut':>4} {'wire tensors':<20} {'KB/frame':>10} {'edge params':>12}  fits")
+    for o in options:
+        nbytes = o.wire_bytes(args.transport)
+        mark = "<- chosen" if choice is not None and o.cut == choice.cut else ""
+        fits = "yes" if nbytes <= budget else "no"
+        wire_s = ",".join(map(str, o.wire))
+        print(
+            f"{o.cut:>4} {wire_s:<20} {_kb(nbytes):>10} {o.edge_params_share:>11.1%}  "
+            f"{fits:<4}{mark}"
+        )
+
+    if choice is None:
+        print(
+            "\nno cut fits the budget: raw feature shipping cannot meet this link."
+            "\nUse a trained bottleneck (yolosplit train-bottleneck) or ship JPEG frames."
+        )
+        return 1
+    print(
+        f"\nplan: cut after layer {choice.cut} "
+        f"({_kb(choice.wire_bytes(args.transport))} KB/frame, "
+        f"{choice.edge_params_share:.1%} of params on the edge)"
+    )
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(
+                {
+                    "cut": choice.cut,
+                    "wire": list(choice.wire),
+                    "bytes_per_frame": choice.wire_bytes(args.transport),
+                    "edge_params_share": choice.edge_params_share,
+                    "budget_bytes_per_frame": budget,
+                    "transport": args.transport,
+                },
+                indent=2,
+            )
+        )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="yolosplit",
@@ -279,6 +329,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_stream.add_argument("--limit", type=int, default=None, help="max frames")
     p_stream.add_argument("--json", default=None, help="write summary JSON here")
     p_stream.set_defaults(func=_cmd_stream)
+
+    p_plan = sub.add_parser("plan", help="pick the split point for a bandwidth/FPS budget")
+    common(p_plan)
+    p_plan.add_argument("--bandwidth-mbps", type=float, required=True, help="link bandwidth")
+    p_plan.add_argument("--fps", type=float, required=True, help="target frame rate")
+    p_plan.add_argument(
+        "--transport", choices=["int8", "fp16", "fp32"], default="int8", help="wire encoding"
+    )
+    p_plan.add_argument("--json", default=None, help="write the chosen plan JSON here")
+    p_plan.set_defaults(func=_cmd_plan)
 
     return parser
 

@@ -8,6 +8,7 @@ from .bottleneck import (
     save_bottleneck,
 )
 from .evaluate import MapComparison, compare_map, split_inference
+from .planner import CutOption, budget_bytes_per_frame, enumerate_cuts, plan_cut
 from .policy import (
     AdaptivePolicy,
     ConfidenceEMADrift,
@@ -31,13 +32,14 @@ from .topology import (
 from .train import TrainResult, train_bottleneck
 from .transport import Int8Transport, RawTransport
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "AdaptivePolicy",
     "Bottleneck",
     "BottleneckTransport",
     "ConfidenceEMADrift",
+    "CutOption",
     "Decision",
     "Detection",
     "FrameReport",
@@ -54,11 +56,14 @@ __all__ = [
     "WireStats",
     "__version__",
     "backbone_cut",
+    "budget_bytes_per_frame",
     "build_graph",
     "compare_map",
     "dequantize",
     "deserialize_detections",
+    "enumerate_cuts",
     "load_bottleneck",
+    "plan_cut",
     "probe_output_shapes",
     "quantize",
     "save_bottleneck",
