@@ -51,7 +51,7 @@ pip install -e ".[dev]"
 checkpoint or a bare model YAML):
 
 ```bash
-yolosplit inspect --model teacher_best.pt --imgsz 640
+yolosplit inspect --model yolo11l.pt --imgsz 640
 ```
 
 Prints the layer graph (with resolved skip connections) and, for every candidate
@@ -61,7 +61,7 @@ cut, which tensors must cross the wire and their fp32/fp16/int8 sizes.
 wire set produced by the edge half on the *same letterboxed pixels*:
 
 ```bash
-yolosplit measure --model teacher_best.pt --images datasets/kitting_v4/images/val \
+yolosplit measure --model yolo11l.pt --images path/to/images/val \
     --quality 85 --json results/measure.json
 ```
 
@@ -69,7 +69,7 @@ yolosplit measure --model teacher_best.pt --images datasets/kitting_v4/images/va
 unsplit vs split+INT8:
 
 ```bash
-yolosplit evaluate --model teacher_best.pt --data kitting_v4.yaml \
+yolosplit evaluate --model yolo11l.pt --data data.yaml \
     --transport int8 --per-channel --json results/eval.json
 ```
 
@@ -80,9 +80,9 @@ frozen, simulated INT8 noise on the latents); with the defaults
 of JPEG q85:
 
 ```bash
-yolosplit train-bottleneck --model teacher_best.pt \
-    --images datasets/kitting_v4/images/train --device 0 --out bottleneck.pt
-yolosplit evaluate --model teacher_best.pt --data kitting_v4.yaml \
+yolosplit train-bottleneck --model yolo11l.pt \
+    --images path/to/images/train --device 0 --out bottleneck.pt
+yolosplit evaluate --model yolo11l.pt --data data.yaml \
     --bottleneck bottleneck.pt --json results/eval_bottleneck.json
 ```
 
@@ -93,7 +93,7 @@ JPEG on drift or low confidence — which is also enqueued as a retraining
 candidate:
 
 ```bash
-yolosplit stream --model teacher_best.pt --images datasets/kitting_v4/images/val \
+yolosplit stream --model yolo11l.pt --images path/to/images/val \
     --bottleneck bottleneck.pt --json results/stream.json
 ```
 
@@ -103,18 +103,19 @@ Everything is also available as a library:
 from ultralytics import YOLO
 from yolosplit import SplitRunner, Int8Transport, split_inference
 
-yolo = YOLO("teacher_best.pt")
+yolo = YOLO("yolo11l.pt")
 runner = SplitRunner(yolo.model, transport=Int8Transport(axis=1))
 detections = runner(x)                  # edge -> quantise -> wire -> cloud
 print(runner.stats.mean_bytes)          # bytes/frame that crossed the wire
 
 with split_inference(yolo.model, transport=Int8Transport()) as runner:
-    yolo.val(data="kitting_v4.yaml")    # standard ultralytics val, split underneath
+    yolo.val(data="data.yaml")       # standard ultralytics val, split underneath
 ```
 
 ## Results
 
-First measurement — YOLO11l (`teacher_best.pt`), 12 kitting_v4 frames, 640×640,
+First measurement — a YOLO11l fine-tuned on a private industrial dataset
+(4 classes), 12 frames, 640×640,
 backbone cut (layer 10, wire set = P3/P4/P5, i.e. layers 4/6/10):
 
 | configuration | wire KB/frame (mean) | vs JPEG q85 |
@@ -130,7 +131,7 @@ INT8+zlib ships ~30x more bytes than the JPEG the model would otherwise consume.
 This confirms the known risk rather than killing the idea — it quantifies the
 gap a **learned bottleneck at the cut** has to close (~30x on top of INT8+zlib)
 for feature shipping to beat frame shipping. mAP cost of INT8 (via
-`yolosplit evaluate` on kitting_v4) is only worth measuring once a bottleneck
+`yolosplit evaluate`) is only worth measuring once a bottleneck
 makes the size competitive.
 
 Latency numbers measured off-device are not representative; re-measure on the
@@ -143,8 +144,9 @@ Jetson before drawing conclusions about end-to-end delay.
       loses to JPEG by ~30x at the backbone cut
 - [x] Learned bottleneck at the cut, trained by feature distillation (0.2.0)
 - [x] Adaptive transmission policy + stream simulator with retraining queue (0.2.0)
-- [ ] Validate on kitting_v4: bottleneck mAP cost (`evaluate --bottleneck`) on GPU
-- [ ] Dynamic split point driven by live bandwidth/GPU metrics
+- [ ] Validate: bottleneck mAP cost (`evaluate --bottleneck`) trained on GPU
+- [x] Cut planner: pick the split point from a bandwidth/FPS budget (0.3.0)
+- [ ] Live re-planning: feed measured bandwidth/GPU metrics into the planner
 - [ ] Kubernetes operator with GitOps rollout (gated on the numbers above)
 
 See [docs/experiment-protocol.md](docs/experiment-protocol.md) for the protocol
@@ -159,7 +161,7 @@ pre-commit install     # optional: run the same checks on every commit
 ```
 
 Tests build YOLO11n from its bundled YAML with random weights — no downloads, no
-GPU needed. YOLO11n shares its topology with the YOLO11l used in production.
+GPU needed. YOLO11n shares its topology with the larger YOLO11 variants.
 
 ## License
 

@@ -2,7 +2,7 @@
 
 Tests build YOLO11n from its bundled YAML (random weights, fixed seed): the
 split/quantisation machinery is weight-agnostic, so nothing needs downloading.
-YOLO11n has the exact same topology as the YOLO11l used in production — only
+YOLO11n has the exact same topology as the larger YOLO11 variants — only
 depth/width differ.
 """
 
