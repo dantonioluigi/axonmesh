@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-07-14
+
+- Cut planner (`yolosplit plan`, `yolosplit.planner`): given link bandwidth and
+  target FPS, prices every candidate cut (wire bytes per transport, share of
+  parameters run on the edge) and picks the cut that fits the budget with the
+  least edge compute. Returns a clear "nothing fits" verdict when raw feature
+  shipping cannot meet the link (i.e. the bottleneck is required).
+
 ## 0.2.0 — 2026-07-14
 
 The adaptive layer: learned bottleneck + transmission policy.
