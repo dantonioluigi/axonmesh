@@ -1,0 +1,27 @@
+name: Bug report
+description: Something behaves incorrectly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you run, what did you expect, what did you get instead.
+      placeholder: |
+        yolosplit measure --model ... --images ...
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python, torch/ultralytics versions, device (CPU/GPU/Jetson).
+      placeholder: |
+        python -c "import torch, ultralytics; print(torch.__version__, ultralytics.__version__)"
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Stack trace, model YAML, cut point, transport used.

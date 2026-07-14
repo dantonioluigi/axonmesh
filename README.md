@@ -73,6 +73,30 @@ yolosplit evaluate --model teacher_best.pt --data kitting_v4.yaml \
     --transport int8 --per-channel --json results/eval.json
 ```
 
+**4. Train the learned bottleneck** — the piece that closes the ~30x gap. A
+small per-level autoencoder is trained by feature distillation (detector
+frozen, simulated INT8 noise on the latents); with the defaults
+(`--latent-channels 8 --stride 2`) the INT8 latent is ~17 KB/frame vs ~47 KB
+of JPEG q85:
+
+```bash
+yolosplit train-bottleneck --model teacher_best.pt \
+    --images datasets/kitting_v4/images/train --device 0 --out bottleneck.pt
+yolosplit evaluate --model teacher_best.pt --data kitting_v4.yaml \
+    --bottleneck bottleneck.pt --json results/eval_bottleneck.json
+```
+
+**5. Simulate the adaptive stream** — the edge runs the detector locally and
+per frame ships only what the frame deserves: serialised boxes (11 bytes per
+detection) when confident, (bottlenecked) features when uncertain, the full
+JPEG on drift or low confidence — which is also enqueued as a retraining
+candidate:
+
+```bash
+yolosplit stream --model teacher_best.pt --images datasets/kitting_v4/images/val \
+    --bottleneck bottleneck.pt --json results/stream.json
+```
+
 Everything is also available as a library:
 
 ```python
@@ -114,12 +138,17 @@ Jetson before drawing conclusions about end-to-end delay.
 
 ## Roadmap
 
-This is the feasibility probe for a larger idea — adaptive split computing where
-the edge modulates what it transmits based on model confidence and drift state
-(detections only → quantised features → full frames for retraining). See
-[docs/experiment-protocol.md](docs/experiment-protocol.md) for the experimental
-protocol and where this is headed (learned bottleneck, dynamic split point,
-Kubernetes operator).
+- [x] Graph-aware splitter, bit-exact split inference (0.1.0)
+- [x] INT8 wire + bandwidth/accuracy measurement (0.1.0) → finding: raw INT8
+      loses to JPEG by ~30x at the backbone cut
+- [x] Learned bottleneck at the cut, trained by feature distillation (0.2.0)
+- [x] Adaptive transmission policy + stream simulator with retraining queue (0.2.0)
+- [ ] Validate on kitting_v4: bottleneck mAP cost (`evaluate --bottleneck`) on GPU
+- [ ] Dynamic split point driven by live bandwidth/GPU metrics
+- [ ] Kubernetes operator with GitOps rollout (gated on the numbers above)
+
+See [docs/experiment-protocol.md](docs/experiment-protocol.md) for the protocol
+and [docs/maintenance.md](docs/maintenance.md) for how the repo is maintained.
 
 ## Development
 

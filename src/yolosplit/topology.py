@@ -107,7 +107,8 @@ def probe_output_shapes(det_model: nn.Module, imgsz: int = 640) -> list[tuple[in
     graph = build_graph(det_model)
     shapes: list[tuple[int, ...] | None] = []
     cache: dict[int, torch.Tensor] = {}
-    x: torch.Tensor | list[torch.Tensor] = torch.zeros(1, 3, imgsz, imgsz)
+    device = next(det_model.parameters()).device
+    x: torch.Tensor | list[torch.Tensor] = torch.zeros(1, 3, imgsz, imgsz, device=device)
     with torch.no_grad():
         for m, info in zip(det_model.model, graph, strict=True):
             if not info.is_sequential:
