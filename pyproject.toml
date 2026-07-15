@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yolosplit"
-version = "0.3.0"
+version = "0.4.0"
 description = "Split computing experiments for YOLO11: cut the network after the backbone and ship quantised intermediate tensors instead of JPEG frames."
 readme = "README.md"
 license = { text = "MIT" }

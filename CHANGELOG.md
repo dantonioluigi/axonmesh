@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — 2026-07-14
+
+- Bottleneck sweep (`yolosplit sweep`, `yolosplit.sweep`): trains one
+  bottleneck per (latent channels × stride) configuration and prices each on
+  the same frames — serialised INT8 latent bytes (plain and zlib), the JPEG
+  baseline, feature reconstruction error — then marks the Pareto front.
+  Indivisible strides are skipped, not fatal. This is the Phase 1 tooling:
+  run it on GPU, pick the smallest Pareto config, validate its mAP with
+  `evaluate --bottleneck`.
+
 ## 0.3.0 — 2026-07-14
 
 - Cut planner (`yolosplit plan`, `yolosplit.planner`): given link bandwidth and

@@ -1,4 +1,4 @@
-"""Command-line interface: ``yolosplit inspect|measure|evaluate|train-bottleneck|stream``."""
+"""CLI: ``yolosplit inspect|measure|evaluate|train-bottleneck|stream|plan|sweep``."""
 
 from __future__ import annotations
 
@@ -209,6 +209,38 @@ def _cmd_stream(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_sweep(args: argparse.Namespace) -> int:
+    from .sweep import run_sweep, to_dicts, to_markdown
+
+    results = run_sweep(
+        _load_model(args.model),
+        args.images,
+        latents=[int(x) for x in args.latents.split(",")],
+        strides=[int(x) for x in args.strides.split(",")],
+        cut=args.cut,
+        epochs=args.epochs,
+        batch=args.batch,
+        lr=args.lr,
+        imgsz=args.imgsz,
+        limit=args.limit,
+        device=args.device,
+        quality=args.quality,
+    )
+    if not results:
+        print("no configuration completed (all skipped?)")
+        return 1
+    print(to_markdown(results))
+    best = min((r for r in results if r.pareto), key=lambda r: r.int8_zlib_bytes)
+    print(
+        f"\nsmallest pareto config: latent={best.config.latent_channels} "
+        f"stride={best.config.stride} -> {best.int8_zlib_bytes / 1024:.1f} KB/frame "
+        f"({best.vs_jpeg:.2f}x vs jpeg). Validate its mAP with evaluate --bottleneck."
+    )
+    if args.json:
+        Path(args.json).write_text(json.dumps(to_dicts(results), indent=2))
+    return 0
+
+
 def _cmd_plan(args: argparse.Namespace) -> int:
     from .planner import budget_bytes_per_frame, enumerate_cuts, plan_cut
 
@@ -339,6 +371,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_plan.add_argument("--json", default=None, help="write the chosen plan JSON here")
     p_plan.set_defaults(func=_cmd_plan)
+
+    p_sweep = sub.add_parser("sweep", help="train and price a grid of bottleneck configs")
+    common(p_sweep)
+    p_sweep.add_argument("--images", required=True, help="directory of training images")
+    p_sweep.add_argument("--cut", type=int, default=None, help=_CUT_HELP)
+    p_sweep.add_argument("--latents", default="4,8,16", help="comma-separated latent channels")
+    p_sweep.add_argument("--strides", default="1,2", help="comma-separated strides")
+    p_sweep.add_argument("--epochs", type=int, default=5)
+    p_sweep.add_argument("--batch", type=int, default=4)
+    p_sweep.add_argument("--lr", type=float, default=1e-3)
+    p_sweep.add_argument("--limit", type=int, default=None, help="max training images")
+    p_sweep.add_argument("--device", default="cpu", help="cpu, 0, ...")
+    p_sweep.add_argument("--quality", type=int, default=85, help="JPEG baseline quality")
+    p_sweep.add_argument("--json", default=None, help="write results JSON here")
+    p_sweep.set_defaults(func=_cmd_sweep)
 
     return parser
 
