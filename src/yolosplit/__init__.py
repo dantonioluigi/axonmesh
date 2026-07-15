@@ -21,6 +21,7 @@ from .policy import (
 from .quantize import QuantizedTensor, dequantize, quantize
 from .split import SplitRunner, WireStats
 from .stream import FrameReport, simulate_stream, summarize_stream
+from .sweep import SweepConfig, SweepResult, run_sweep
 from .topology import (
     LayerInfo,
     UnsupportedTopologyError,
@@ -32,7 +33,7 @@ from .topology import (
 from .train import TrainResult, train_bottleneck
 from .transport import Int8Transport, RawTransport
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "AdaptivePolicy",
@@ -51,6 +52,8 @@ __all__ = [
     "QuantizedTensor",
     "RawTransport",
     "SplitRunner",
+    "SweepConfig",
+    "SweepResult",
     "TrainResult",
     "UnsupportedTopologyError",
     "WireStats",
@@ -66,6 +69,7 @@ __all__ = [
     "plan_cut",
     "probe_output_shapes",
     "quantize",
+    "run_sweep",
     "save_bottleneck",
     "serialize_detections",
     "simulate_stream",
