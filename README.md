@@ -144,13 +144,17 @@ Jetson before drawing conclusions about end-to-end delay.
       loses to JPEG by ~30x at the backbone cut
 - [x] Learned bottleneck at the cut, trained by feature distillation (0.2.0)
 - [x] Adaptive transmission policy + stream simulator with retraining queue (0.2.0)
-- [ ] Validate: bottleneck mAP cost (`evaluate --bottleneck`) trained on GPU
 - [x] Cut planner: pick the split point from a bandwidth/FPS budget (0.3.0)
-- [ ] Live re-planning: feed measured bandwidth/GPU metrics into the planner
-- [ ] Kubernetes operator with GitOps rollout (gated on the numbers above)
+- [ ] P1 (0.4.x) — GPU-train the bottleneck, `sweep` for the bytes-vs-mAP Pareto
+- [ ] P2 (0.5.x) — real edge/cloud split over the network + ONNX export + on-device bench
+- [ ] P3 (0.6.x) — container images, Helm chart, Prometheus metrics, retraining store
+- [ ] P4 (0.7.x) — live re-planning with hysteresis from measured bandwidth/GPU load
+- [ ] P5 (0.8.x) — Kubernetes operator (`SplitInference` CRD, kopf controller, kind e2e)
+- [ ] P6 (0.9.x → 1.0) — retraining loop: drift-driven `batch/v1` Jobs + GitOps promotion
 
-See [docs/experiment-protocol.md](docs/experiment-protocol.md) for the protocol
-and [docs/maintenance.md](docs/maintenance.md) for how the repo is maintained.
+The full gated plan is in [docs/roadmap.md](docs/roadmap.md); the experimental
+method in [docs/experiment-protocol.md](docs/experiment-protocol.md); repo
+upkeep in [docs/maintenance.md](docs/maintenance.md).
 
 ## Development
 
