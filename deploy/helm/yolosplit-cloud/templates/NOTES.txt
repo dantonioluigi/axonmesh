@@ -1,0 +1,13 @@
+The cloud half is starting.
+
+Wire endpoint (for edge devices):
+  {{ include "yolosplit-cloud.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+Point an edge at it:
+  yolosplit edge --model model.pt --images /data/frames \
+      --host {{ include "yolosplit-cloud.name" . }}.{{ .Release.Namespace }}.svc \
+      --port {{ .Values.service.port }}
+
+Metrics: port {{ .Values.service.metricsPort }}, path /metrics (health: /healthz).
+Edge and cloud must load the SAME weights: the fingerprint handshake refuses
+mismatched halves at connect time.

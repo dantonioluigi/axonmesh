@@ -1,0 +1,20 @@
+# Edge half of the split: local inference + adaptive policy + wire client.
+#
+# The base is plain Python so the image builds for amd64 and arm64 alike
+# (docker buildx build --platform linux/amd64,linux/arm64 ...). On devices
+# with accelerators (e.g. NVIDIA Jetson), swap the base for the vendor's
+# torch-enabled image; nothing in yolosplit itself is device-specific.
+FROM python:3.12-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir .
+
+ENTRYPOINT ["yolosplit", "edge"]
+# Supply at runtime: --model /models/model.pt --images ... --host <cloud service>
