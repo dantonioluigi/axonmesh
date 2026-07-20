@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "yolosplit-cloud.name" . }}
+  labels:
+    {{- include "yolosplit-cloud.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "yolosplit-cloud.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "yolosplit-cloud.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.model.url }}
+      initContainers:
+        - name: fetch-model
+          image: curlimages/curl:8.10.1
+          command: ["sh", "-c"]
+          args:
+            - >-
+              curl -fsSL -o {{ .Values.model.path }} {{ .Values.model.url | quote }}
+              {{- if .Values.bottleneck.url }}
+              && curl -fsSL -o /models/bottleneck.pt {{ .Values.bottleneck.url | quote }}
+              {{- end }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      {{- end }}
+      containers:
+        - name: cloud
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --model={{ .Values.model.path }}
+            - --host=0.0.0.0
+            - --port={{ .Values.server.port }}
+            - --metrics-port={{ .Values.server.metricsPort }}
+            - --imgsz={{ .Values.server.imgsz }}
+            {{- if .Values.server.cut }}
+            - --cut={{ .Values.server.cut }}
+            {{- end }}
+            {{- if .Values.bottleneck.url }}
+            - --bottleneck=/models/bottleneck.pt
+            {{- end }}
+            {{- if .Values.server.retrainDir }}
+            - --retrain-dir={{ .Values.server.retrainDir }}
+            {{- end }}
+          ports:
+            - name: wire
+              containerPort: {{ .Values.server.port }}
+            - name: metrics
+              containerPort: {{ .Values.server.metricsPort }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: models
+          {{- if .Values.model.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.model.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.0 — 2026-07-20
+
+The split becomes real — and Kubernetes-ready.
+
+- Wire protocol v1 (`yolosplit.protocol`): framed TCP messages, INT8 tensor
+  packing, and a HELLO/ACK handshake that exchanges model + bottleneck weight
+  fingerprints and the cut point — mismatched halves fail loudly at connect
+  time instead of silently producing wrong detections.
+- `yolosplit serve` (`CloudServer`): the cloud half as a long-running service
+  with `/healthz` and dependency-free Prometheus `/metrics`, an optional
+  retraining queue for FRAME uploads, and a **pluggable postprocess** — the
+  protocol carries opaque result bytes, so a different head/task can be served
+  by swapping one function (YOLO NMS is just the default codec).
+- `yolosplit edge` (`EdgeClient`, `run_edge`): local inference + adaptive
+  policy against a live server; same per-frame accounting as the offline
+  `stream` simulator, so simulated and real numbers are directly comparable.
+- `deploy/`: Dockerfiles for both halves (multi-arch friendly, model-agnostic
+  images) and a Helm chart for the cloud half — `helm install` with a model
+  URL is enough: initContainer download, health probes, Service, optional
+  ServiceMonitor.
+
 ## 0.4.0 — 2026-07-14
 
 - Bottleneck sweep (`yolosplit sweep`, `yolosplit.sweep`): trains one

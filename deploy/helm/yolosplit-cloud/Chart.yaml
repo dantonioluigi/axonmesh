@@ -1,0 +1,9 @@
+apiVersion: v2
+name: yolosplit-cloud
+description: >-
+  Cloud half of a split-computing detector: receives quantised intermediate
+  tensors (or full frames) from edge devices, finishes inference and replies
+  with results. Exposes Prometheus metrics and a health endpoint.
+type: application
+version: 0.1.0
+appVersion: "0.5.0"
