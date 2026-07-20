@@ -43,6 +43,8 @@ def test_int8_quarters_bytes_with_bounded_error(wire):
         span = wire[i].max() - wire[i].min()
         err = (received[i] - wire[i]).abs().max()
         assert err <= span / 255 + 1e-6
+        # Received tensors keep the input's device (GPU-safe contract).
+        assert received[i].device == wire[i].device
 
 
 def test_int8_per_channel_not_worse_than_per_tensor(wire):
