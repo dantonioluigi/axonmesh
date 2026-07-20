@@ -114,6 +114,7 @@ def _cmd_evaluate(args: argparse.Namespace) -> int:  # pragma: no cover - needs 
         imgsz=args.imgsz,
         device=args.device,
         batch=args.batch,
+        rect=args.rect,
     )
     report = comparison.to_dict()
     print(json.dumps(report, indent=2))
@@ -445,6 +446,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_eval.add_argument("--bottleneck", default=None, help="trained bottleneck checkpoint")
     p_eval.add_argument("--device", default="cpu", help="cpu, 0, 0,1 ...")
     p_eval.add_argument("--batch", type=int, default=1, help="validation batch size")
+    p_eval.add_argument(
+        "--rect",
+        action="store_true",
+        help="rectangular val batches (faster); off by default because a "
+        "stride>1 bottleneck needs square inputs and it makes the comparison fairer",
+    )
     p_eval.add_argument("--json", default=None, help="write comparison JSON here")
     p_eval.set_defaults(func=_cmd_evaluate)
 

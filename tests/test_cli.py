@@ -97,6 +97,14 @@ def test_evaluate_parser_wires_transport_options():
     assert args.transport == "int8"
     assert args.per_channel and args.compress
     assert args.func is not None
+    # rect defaults off so a stride>1 bottleneck (square inputs) evaluates cleanly.
+    assert args.rect is False
+    assert (
+        build_parser()
+        .parse_args(["evaluate", "--model", "w.pt", "--data", "d.yaml", "--rect"])
+        .rect
+        is True
+    )
 
 
 @pytest.mark.parametrize("transport", ["int8", "fp16", "fp32"])
