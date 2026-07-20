@@ -62,7 +62,9 @@ class Metrics:
         with self._lock:
             for (name, labels), value in sorted(self._counters.items()):
                 label_s = ",".join(f'{k}="{v}"' for k, v in labels)
-                series = f"{self.prefix}_{name}{{{label_s}}}" if label_s else f"{self.prefix}_{name}"
+                series = (
+                    f"{self.prefix}_{name}{{{label_s}}}" if label_s else f"{self.prefix}_{name}"
+                )
                 lines.append(f"{series} {value}")
         return "\n".join(lines) + "\n"
 
@@ -92,6 +94,15 @@ def start_metrics_server(metrics: Metrics, port: int, host: str = "0.0.0.0") -> 
     return server
 
 
+def _import_nms():
+    """Locate ultralytics' NMS across versions (moved ops→nms around 8.4)."""
+    try:
+        from ultralytics.utils.nms import non_max_suppression
+    except ImportError:  # pragma: no cover - depends on the installed version
+        from ultralytics.utils.ops import non_max_suppression
+    return non_max_suppression
+
+
 def make_yolo_postprocess(imgsz: int, conf: float = 0.25, iou: float = 0.45) -> Postprocess:
     """Default result codec: YOLO NMS → serialised detections.
 
@@ -100,12 +111,14 @@ def make_yolo_postprocess(imgsz: int, conf: float = 0.25, iou: float = 0.45) -> 
     """
 
     def postprocess(raw: Any) -> bytes:
-        from ultralytics.utils.ops import non_max_suppression
+        non_max_suppression = _import_nms()
 
         pred = raw[0] if isinstance(raw, tuple) else raw
         boxes = non_max_suppression(pred, conf_thres=conf, iou_thres=iou)[0]
         detections = [
-            Detection(int(b[5]), float(b[4]), (b[0] / imgsz, b[1] / imgsz, b[2] / imgsz, b[3] / imgsz))
+            Detection(
+                int(b[5]), float(b[4]), (b[0] / imgsz, b[1] / imgsz, b[2] / imgsz, b[3] / imgsz)
+            )
             for b in boxes.tolist()
         ]
         return serialize_detections(detections)

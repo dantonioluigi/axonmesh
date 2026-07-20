@@ -94,7 +94,9 @@ class EdgeClient:
         )
         return nbytes
 
-    def infer_features(self, image_bgr: np.ndarray, frame_id: int = 0) -> tuple[list[Detection], int]:
+    def infer_features(
+        self, image_bgr: np.ndarray, frame_id: int = 0
+    ) -> tuple[list[Detection], int]:
         """Edge half + (optional bottleneck) + INT8 → cloud completes inference."""
         wire = self.runner.edge(to_input_tensor(image_bgr, self.imgsz))
         if self.bottleneck is not None:

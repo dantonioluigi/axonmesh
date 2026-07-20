@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import threading
-import urllib.request
 
 import pytest
 import torch
@@ -95,9 +94,7 @@ def test_bottleneck_wire_is_smaller(det_model, bgr_image):
     try:
         with EdgeClient("127.0.0.1", srv_plain.port, det_model, imgsz=160) as c:
             _, plain_bytes = c.infer_features(bgr_image)
-        with EdgeClient(
-            "127.0.0.1", srv_bn.port, det_model, imgsz=160, bottleneck=bottleneck
-        ) as c:
+        with EdgeClient("127.0.0.1", srv_bn.port, det_model, imgsz=160, bottleneck=bottleneck) as c:
             _, bn_bytes = c.infer_features(bgr_image)
         assert bn_bytes < plain_bytes / 4
     finally:
@@ -106,7 +103,9 @@ def test_bottleneck_wire_is_smaller(det_model, bgr_image):
 
 
 def test_run_edge_over_directory(server, client, images_dir):
-    script = iter([[Detection(0, 0.9, (0.1, 0.1, 0.5, 0.5))], [], [Detection(0, 0.1, (0, 0, 1, 1))]])
+    script = iter(
+        [[Detection(0, 0.9, (0.1, 0.1, 0.5, 0.5))], [], [Detection(0, 0.1, (0, 0, 1, 1))]]
+    )
     policy = AdaptivePolicy(drift=ConfidenceEMADrift(threshold=0.0))
     reports = run_edge(
         iter_image_frames(images_dir),
