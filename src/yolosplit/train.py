@@ -21,6 +21,11 @@ from .bottleneck import Bottleneck
 from .measure import IMAGE_SUFFIXES, to_input_tensor
 from .split import SplitRunner
 
+try:  # tqdm ships with ultralytics; degrade gracefully if it is ever absent.
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    tqdm = None
+
 
 def normalize_device(device: str) -> str:
     """Accept ultralytics-style device strings (``"0"``, ``"0,1"``) for torch.
@@ -93,11 +98,14 @@ def train_bottleneck(
     device: str = "cpu",
     seed: int = 15,
     quant_noise: bool = True,
+    progress: bool = True,
 ) -> tuple[Bottleneck, TrainResult]:
     """Train a bottleneck for ``det_model`` on the images in ``images_dir``.
 
     Returns the trained bottleneck (in eval mode) and the loss history. The
     detector is frozen and left in eval mode; only bottleneck weights change.
+    ``progress`` shows a per-epoch tqdm bar with the running loss (set it False
+    for quiet runs, e.g. the sweep or tests).
     """
     dev = torch.device(normalize_device(device))
     det_model = det_model.to(dev).float().eval()
@@ -115,11 +123,18 @@ def train_bottleneck(
     torch.manual_seed(seed)
     result = TrainResult()
 
+    show = progress and tqdm is not None
     bottleneck.train()
-    for _ in range(epochs):
+    for epoch in range(epochs):
         rng.shuffle(paths)
-        losses = []
-        for start in range(0, len(paths), batch):
+        losses: list[float] = []
+        starts = range(0, len(paths), batch)
+        bar = (
+            tqdm(starts, desc=f"epoch {epoch + 1}/{epochs}", unit="batch", leave=False)
+            if show
+            else starts
+        )
+        for start in bar:
             x = _load_batch(paths[start : start + batch], imgsz, dev)
             wire = runner.edge(x)  # no_grad inside: targets are detached
             recon = bottleneck(wire, quant_noise=quant_noise)
@@ -128,7 +143,12 @@ def train_bottleneck(
             loss.backward()
             optimizer.step()
             losses.append(loss.item())
-        result.epoch_losses.append(sum(losses) / len(losses))
+            if show:
+                bar.set_postfix(loss=f"{losses[-1]:.4f}")
+        mean_loss = sum(losses) / len(losses)
+        result.epoch_losses.append(mean_loss)
+        if progress:
+            print(f"epoch {epoch + 1}/{epochs}: normalised MSE {mean_loss:.4f}")
 
     bottleneck.eval()
     with torch.no_grad():

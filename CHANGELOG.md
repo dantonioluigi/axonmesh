@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `train-bottleneck` now shows a per-epoch tqdm progress bar with the running
+  loss (`train_bottleneck(..., progress=True)`, the default), so a long run is
+  no longer a silent black box; the sweep and tests pass `progress=False`.
 - SplitInference Kubernetes operator (`operator/`): a `SplitInference` CRD
   (`split.dev/v1alpha1`) and a kopf controller that renders and reconciles the
   cloud-half Deployment + Service and an edge-facing ConfigMap (the resolved

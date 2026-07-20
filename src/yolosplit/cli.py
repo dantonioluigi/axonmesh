@@ -144,9 +144,7 @@ def _cmd_train_bottleneck(args: argparse.Namespace) -> int:
         limit=args.limit,
         device=args.device,
         quant_noise=not args.no_quant_noise,
-    )
-    for epoch, loss in enumerate(result.epoch_losses, 1):
-        print(f"epoch {epoch}/{args.epochs}: normalised MSE {loss:.4f}")
+    )  # train_bottleneck prints per-epoch progress itself
     for i, err in sorted(result.relative_errors.items()):
         print(f"layer {i}: relative reconstruction error {err:.3f}")
     save_bottleneck(bottleneck, args.out)
