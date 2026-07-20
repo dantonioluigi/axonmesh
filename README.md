@@ -89,8 +89,8 @@ yolosplit evaluate --model yolo11l.pt --data data.yaml \
 **5. Simulate the adaptive stream** — the edge runs the detector locally and
 per frame ships only what the frame deserves: serialised boxes (11 bytes per
 detection) when confident, (bottlenecked) features when uncertain, the full
-JPEG on drift or low confidence — which is also enqueued as a retraining
-candidate:
+JPEG on drift or low confidence — which is also enqueued as a hard-frame
+sample for later use:
 
 ```bash
 yolosplit stream --model yolo11l.pt --images path/to/images/val \
@@ -130,8 +130,8 @@ yolosplit edge --model yolo11l.pt --bottleneck bottleneck.pt \
 
 The wire protocol carries three payload kinds — serialised detections,
 quantised (bottlenecked) feature tensors, and full JPEG frames — chosen per
-frame by the adaptive policy. FRAME uploads can be queued for retraining with
-`serve --retrain-dir /retrain`.
+frame by the adaptive policy. FRAME uploads can be queued as hard-frame
+samples with `serve --retrain-dir /retrain`.
 
 ## Deploy on Kubernetes
 
@@ -222,15 +222,15 @@ Jetson before drawing conclusions about end-to-end delay.
 - [x] INT8 wire + bandwidth/accuracy measurement (0.1.0) → finding: raw INT8
       loses to JPEG by ~30x at the backbone cut
 - [x] Learned bottleneck at the cut, trained by feature distillation (0.2.0)
-- [x] Adaptive transmission policy + stream simulator with retraining queue (0.2.0)
+- [x] Adaptive transmission policy + stream simulator with hard-frame queue (0.2.0)
 - [x] Cut planner: pick the split point from a bandwidth/FPS budget (0.3.0)
 - [x] Bottleneck sweep: bytes-vs-mAP Pareto tooling (0.4.0)
 - [x] Real network split + wire protocol + Docker/Helm deploy (0.5.0)
 - [x] Live re-planning: bandwidth/load-driven cut selection with hysteresis (0.6.0)
-- [ ] Validate: GPU-train the bottleneck, measure the mAP cost (`evaluate --bottleneck`)
-- [ ] Live re-planning: feed measured bandwidth/GPU metrics into the planner
 - [x] Kubernetes operator: `SplitInference` CRD, kopf controller, kind e2e
-- [ ] Retraining loop: drift-driven `batch/v1` Jobs + GitOps promotion
+- [ ] Validate: GPU-train the bottleneck, measure the mAP cost (`evaluate --bottleneck`)
+- [ ] Backbone-agnostic split: a generic `torch.fx` graph splitter + task heads
+      behind an adapter contract, so any torch vision model works — not just YOLO
 
 The full gated plan is in [docs/roadmap.md](docs/roadmap.md); the experimental
 method in [docs/experiment-protocol.md](docs/experiment-protocol.md); repo
