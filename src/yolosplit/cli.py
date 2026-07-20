@@ -1,4 +1,4 @@
-"""Command-line interface: ``yolosplit inspect|measure|evaluate|train-bottleneck|stream``."""
+"""CLI: ``yolosplit inspect|measure|evaluate|train-bottleneck|stream|plan|sweep|serve|edge``."""
 
 from __future__ import annotations
 
@@ -209,6 +209,38 @@ def _cmd_stream(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_sweep(args: argparse.Namespace) -> int:
+    from .sweep import run_sweep, to_dicts, to_markdown
+
+    results = run_sweep(
+        _load_model(args.model),
+        args.images,
+        latents=[int(x) for x in args.latents.split(",")],
+        strides=[int(x) for x in args.strides.split(",")],
+        cut=args.cut,
+        epochs=args.epochs,
+        batch=args.batch,
+        lr=args.lr,
+        imgsz=args.imgsz,
+        limit=args.limit,
+        device=args.device,
+        quality=args.quality,
+    )
+    if not results:
+        print("no configuration completed (all skipped?)")
+        return 1
+    print(to_markdown(results))
+    best = min((r for r in results if r.pareto), key=lambda r: r.int8_zlib_bytes)
+    print(
+        f"\nsmallest pareto config: latent={best.config.latent_channels} "
+        f"stride={best.config.stride} -> {best.int8_zlib_bytes / 1024:.1f} KB/frame "
+        f"({best.vs_jpeg:.2f}x vs jpeg). Validate its mAP with evaluate --bottleneck."
+    )
+    if args.json:
+        Path(args.json).write_text(json.dumps(to_dicts(results), indent=2))
+    return 0
+
+
 def _cmd_plan(args: argparse.Namespace) -> int:
     from .planner import budget_bytes_per_frame, enumerate_cuts, plan_cut
 
@@ -256,6 +288,75 @@ def _cmd_plan(args: argparse.Namespace) -> int:
                 indent=2,
             )
         )
+    return 0
+
+
+def _load_optional_bottleneck(path):
+    if not path:
+        return None
+    from .bottleneck import load_bottleneck
+
+    return load_bottleneck(path)
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:  # pragma: no cover - blocks forever
+    from .server import CloudServer, start_metrics_server
+
+    server = CloudServer(
+        _load_model(args.model),
+        cut=args.cut,
+        bottleneck=_load_optional_bottleneck(args.bottleneck),
+        imgsz=args.imgsz,
+        retrain_dir=args.retrain_dir,
+        host=args.host,
+        port=args.port,
+    )
+    start_metrics_server(server.metrics, args.metrics_port, host=args.host)
+    print(
+        f"cloud half listening on {args.host}:{server.port} "
+        f"(cut={server.runner.cut}, metrics on :{args.metrics_port}/metrics)"
+    )
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        server.shutdown()
+    return 0
+
+
+def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a live server
+    from .edge import EdgeClient, run_edge
+    from .policy import AdaptivePolicy, ConfidenceEMADrift
+    from .stream import iter_image_frames, summarize_stream, yolo_inferer
+
+    yolo = _load_yolo(args.model)
+    policy = AdaptivePolicy(
+        conf_high=args.conf_high,
+        conf_low=args.conf_low,
+        drift=ConfidenceEMADrift(threshold=args.drift_threshold),
+    )
+    with EdgeClient(
+        args.host,
+        args.port,
+        yolo.model,
+        cut=args.cut,
+        bottleneck=_load_optional_bottleneck(args.bottleneck),
+        imgsz=args.imgsz,
+    ) as client:
+        reports = run_edge(
+            iter_image_frames(args.images, limit=args.limit),
+            yolo_inferer(yolo, imgsz=args.imgsz, conf=args.conf),
+            policy,
+            client,
+            quality=args.quality,
+        )
+    summary = summarize_stream(reports)
+    print(
+        f"{summary['frames']:.0f} frames -> {_kb(summary['total_bytes'])} KB on the wire "
+        f"(always-JPEG {_kb(summary['baseline_jpeg_bytes'])} KB, "
+        f"saved {summary['saved_vs_jpeg']:.1%})"
+    )
+    if args.json:
+        Path(args.json).write_text(json.dumps(summary, indent=2))
     return 0
 
 
@@ -339,6 +440,47 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_plan.add_argument("--json", default=None, help="write the chosen plan JSON here")
     p_plan.set_defaults(func=_cmd_plan)
+
+    p_sweep = sub.add_parser("sweep", help="train and price a grid of bottleneck configs")
+    common(p_sweep)
+    p_sweep.add_argument("--images", required=True, help="directory of training images")
+    p_sweep.add_argument("--cut", type=int, default=None, help=_CUT_HELP)
+    p_sweep.add_argument("--latents", default="4,8,16", help="comma-separated latent channels")
+    p_sweep.add_argument("--strides", default="1,2", help="comma-separated strides")
+    p_sweep.add_argument("--epochs", type=int, default=5)
+    p_sweep.add_argument("--batch", type=int, default=4)
+    p_sweep.add_argument("--lr", type=float, default=1e-3)
+    p_sweep.add_argument("--limit", type=int, default=None, help="max training images")
+    p_sweep.add_argument("--device", default="cpu", help="cpu, 0, ...")
+    p_sweep.add_argument("--quality", type=int, default=85, help="JPEG baseline quality")
+    p_sweep.add_argument("--json", default=None, help="write results JSON here")
+    p_sweep.set_defaults(func=_cmd_sweep)
+
+    p_serve = sub.add_parser("serve", help="run the cloud half as a network service")
+    common(p_serve)
+    p_serve.add_argument("--cut", type=int, default=None, help=_CUT_HELP)
+    p_serve.add_argument("--bottleneck", default=None, help="trained bottleneck checkpoint")
+    p_serve.add_argument("--host", default="0.0.0.0")
+    p_serve.add_argument("--port", type=int, default=9095)
+    p_serve.add_argument("--metrics-port", type=int, default=9090, help="/healthz and /metrics")
+    p_serve.add_argument("--retrain-dir", default=None, help="where FRAME uploads are enqueued")
+    p_serve.set_defaults(func=_cmd_serve)
+
+    p_edge = sub.add_parser("edge", help="stream frames to a live cloud half")
+    common(p_edge)
+    p_edge.add_argument("--images", required=True, help="directory of frames")
+    p_edge.add_argument("--host", required=True, help="cloud half address")
+    p_edge.add_argument("--port", type=int, default=9095)
+    p_edge.add_argument("--cut", type=int, default=None, help=_CUT_HELP)
+    p_edge.add_argument("--bottleneck", default=None, help="trained bottleneck checkpoint")
+    p_edge.add_argument("--conf", type=float, default=0.25, help="detector confidence floor")
+    p_edge.add_argument("--conf-high", type=float, default=0.75, help="detections-only above")
+    p_edge.add_argument("--conf-low", type=float, default=0.4, help="full frame below")
+    p_edge.add_argument("--drift-threshold", type=float, default=0.5, help="EMA drift trigger")
+    p_edge.add_argument("--quality", type=int, default=85, help="JPEG quality")
+    p_edge.add_argument("--limit", type=int, default=None, help="max frames")
+    p_edge.add_argument("--json", default=None, help="write summary JSON here")
+    p_edge.set_defaults(func=_cmd_edge)
 
     return parser
 

@@ -1,0 +1,46 @@
+image:
+  repository: ghcr.io/dantonioluigi/yolosplit-cloud
+  tag: ""            # defaults to the chart appVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+model:
+  # URL the initContainer downloads the checkpoint from (any HTTP(S) source).
+  # Leave empty and set existingClaim to mount weights from a PVC instead.
+  url: ""
+  existingClaim: ""
+  # Path the server loads inside the pod (don't change unless you know why).
+  path: /models/model.pt
+
+bottleneck:
+  # Optional trained bottleneck checkpoint (same mechanics as model.url).
+  url: ""
+
+server:
+  port: 9095
+  metricsPort: 9090
+  imgsz: 640
+  cut: ""            # empty = backbone cut chosen automatically
+  retrainDir: ""     # e.g. /retrain when mounting a PVC for the hard-frame queue
+
+service:
+  type: ClusterIP
+  port: 9095
+  metricsPort: 9090
+
+serviceMonitor:
+  # Requires the Prometheus Operator CRDs.
+  enabled: false
+  interval: 30s
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 2Gi
+  limits:
+    memory: 4Gi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.5.0 — 2026-07-20
+
+The split becomes real — and Kubernetes-ready.
+
+- Wire protocol v1 (`yolosplit.protocol`): framed TCP messages, INT8 tensor
+  packing, and a HELLO/ACK handshake that exchanges model + bottleneck weight
+  fingerprints and the cut point — mismatched halves fail loudly at connect
+  time instead of silently producing wrong detections.
+- `yolosplit serve` (`CloudServer`): the cloud half as a long-running service
+  with `/healthz` and dependency-free Prometheus `/metrics`, an optional
+  retraining queue for FRAME uploads, and a **pluggable postprocess** — the
+  protocol carries opaque result bytes, so a different head/task can be served
+  by swapping one function (YOLO NMS is just the default codec).
+- `yolosplit edge` (`EdgeClient`, `run_edge`): local inference + adaptive
+  policy against a live server; same per-frame accounting as the offline
+  `stream` simulator, so simulated and real numbers are directly comparable.
+- `deploy/`: Dockerfiles for both halves (multi-arch friendly, model-agnostic
+  images) and a Helm chart for the cloud half — `helm install` with a model
+  URL is enough: initContainer download, health probes, Service, optional
+  ServiceMonitor.
+
+## 0.4.0 — 2026-07-14
+
+- Bottleneck sweep (`yolosplit sweep`, `yolosplit.sweep`): trains one
+  bottleneck per (latent channels × stride) configuration and prices each on
+  the same frames — serialised INT8 latent bytes (plain and zlib), the JPEG
+  baseline, feature reconstruction error — then marks the Pareto front.
+  Indivisible strides are skipped, not fatal. This is the Phase 1 tooling:
+  run it on GPU, pick the smallest Pareto config, validate its mAP with
+  `evaluate --bottleneck`.
+
 ## 0.3.0 — 2026-07-14
 
 - Cut planner (`yolosplit plan`, `yolosplit.planner`): given link bandwidth and

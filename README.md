@@ -112,6 +112,61 @@ with split_inference(yolo.model, transport=Int8Transport()) as runner:
     yolo.val(data="data.yaml")       # standard ultralytics val, split underneath
 ```
 
+## Run it split, over the network
+
+The cloud half runs as a service; the edge half connects to it. A HELLO/ACK
+handshake exchanges the weight fingerprints of both halves and the cut point,
+so an edge and a cloud running different weights are rejected at connect time
+instead of silently producing wrong results.
+
+```bash
+# cloud (a K8s pod, or just another host)
+yolosplit serve --model yolo11l.pt --bottleneck bottleneck.pt --port 9095
+
+# edge (Jetson, laptop, anything with the same weights)
+yolosplit edge --model yolo11l.pt --bottleneck bottleneck.pt \
+    --host <cloud-host> --port 9095 --images path/to/frames
+```
+
+The wire protocol carries three payload kinds — serialised detections,
+quantised (bottlenecked) feature tensors, and full JPEG frames — chosen per
+frame by the adaptive policy. FRAME uploads can be queued for retraining with
+`serve --retrain-dir /retrain`.
+
+## Deploy on Kubernetes
+
+`deploy/` ships Dockerfiles for both halves and a Helm chart for the cloud
+half. The images are model-agnostic (weights are provided at runtime, not
+baked in), so a single build serves any checkpoint:
+
+```bash
+helm install detector deploy/helm/yolosplit-cloud \
+    --set image.repository=ghcr.io/you/yolosplit-cloud \
+    --set model.url=https://your-store/model.pt \
+    --set bottleneck.url=https://your-store/bottleneck.pt
+```
+
+An initContainer downloads the checkpoint (or mount a PVC via
+`model.existingClaim`); the pod exposes the wire port plus `/healthz` and
+Prometheus `/metrics` (set `serviceMonitor.enabled=true` with the Prometheus
+Operator). Point edge devices at the resulting Service DNS name.
+
+## Not just YOLO / not just Jetson
+
+The split machinery is deliberately generic and the specifics are seams, not
+assumptions:
+
+- **Model** — the splitter reads any ultralytics detection graph via its
+  `m.f`/`m.i` wiring, not a hardcoded layer list; the cut is chosen from the
+  graph. Non-detection heads plug in by replacing the server's `postprocess`
+  (the wire carries opaque result bytes; YOLO NMS is only the default codec).
+- **Edge device** — "edge" is just a host that runs the backbone and speaks
+  the protocol. Jetson is the reference target, but the edge image is plain
+  Python and builds for amd64/arm64 alike; swap the base image for a
+  vendor-accelerated one where available.
+- **Transport** — INT8 / bottleneck / raw are pluggable `Transport` objects;
+  a new codec is one class implementing the wire round-trip.
+
 ## Results
 
 First measurement — a YOLO11l fine-tuned on a private industrial dataset
@@ -145,12 +200,12 @@ Jetson before drawing conclusions about end-to-end delay.
 - [x] Learned bottleneck at the cut, trained by feature distillation (0.2.0)
 - [x] Adaptive transmission policy + stream simulator with retraining queue (0.2.0)
 - [x] Cut planner: pick the split point from a bandwidth/FPS budget (0.3.0)
-- [ ] P1 (0.4.x) — GPU-train the bottleneck, `sweep` for the bytes-vs-mAP Pareto
-- [ ] P2 (0.5.x) — real edge/cloud split over the network + ONNX export + on-device bench
-- [ ] P3 (0.6.x) — container images, Helm chart, Prometheus metrics, retraining store
-- [ ] P4 (0.7.x) — live re-planning with hysteresis from measured bandwidth/GPU load
-- [ ] P5 (0.8.x) — Kubernetes operator (`SplitInference` CRD, kopf controller, kind e2e)
-- [ ] P6 (0.9.x → 1.0) — retraining loop: drift-driven `batch/v1` Jobs + GitOps promotion
+- [x] Bottleneck sweep: bytes-vs-mAP Pareto tooling (0.4.0)
+- [x] Real network split + wire protocol + Docker/Helm deploy (0.5.0)
+- [ ] Validate: GPU-train the bottleneck, measure the mAP cost (`evaluate --bottleneck`)
+- [ ] Live re-planning: feed measured bandwidth/GPU metrics into the planner
+- [ ] Kubernetes operator: `SplitInference` CRD, kopf controller, kind e2e
+- [ ] Retraining loop: drift-driven `batch/v1` Jobs + GitOps promotion
 
 The full gated plan is in [docs/roadmap.md](docs/roadmap.md); the experimental
 method in [docs/experiment-protocol.md](docs/experiment-protocol.md); repo
