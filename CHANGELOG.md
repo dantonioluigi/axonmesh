@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-07-20
+
+- Live re-planning (`yolosplit.replanning`, `yolosplit replan`): a
+  `BandwidthEstimator` (EWMA of achieved Mbps) and a `ReplanningController`
+  that re-runs the cut planner from measured link and edge load with
+  **asymmetric hysteresis** — degrade immediately when the current plan
+  overruns the link, upgrade only after a better plan has fit with margin for
+  `patience` observations (a hot edge past `load_ceiling` skips the wait). The
+  `replan` command simulates a controller over a scripted bandwidth trace, so
+  the behaviour is testable in CI before it drives a live edge.
+
 ## 0.5.0 — 2026-07-20
 
 The split becomes real — and Kubernetes-ready.

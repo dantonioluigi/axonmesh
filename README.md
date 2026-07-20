@@ -202,8 +202,8 @@ Jetson before drawing conclusions about end-to-end delay.
 - [x] Cut planner: pick the split point from a bandwidth/FPS budget (0.3.0)
 - [x] Bottleneck sweep: bytes-vs-mAP Pareto tooling (0.4.0)
 - [x] Real network split + wire protocol + Docker/Helm deploy (0.5.0)
+- [x] Live re-planning: bandwidth/load-driven cut selection with hysteresis (0.6.0)
 - [ ] Validate: GPU-train the bottleneck, measure the mAP cost (`evaluate --bottleneck`)
-- [ ] Live re-planning: feed measured bandwidth/GPU metrics into the planner
 - [ ] Kubernetes operator: `SplitInference` CRD, kopf controller, kind e2e
 - [ ] Retraining loop: drift-driven `batch/v1` Jobs + GitOps promotion
 

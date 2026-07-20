@@ -291,6 +291,54 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_replan(args: argparse.Namespace) -> int:
+    from .planner import enumerate_cuts
+    from .replanning import ReplanningController, simulate_trace
+
+    trace_raw = json.loads(Path(args.trace).read_text())
+    # Each entry is [bandwidth_mbps] or [bandwidth_mbps, edge_load].
+    trace = [(row[0], row[1] if len(row) > 1 else None) for row in trace_raw]
+
+    options = enumerate_cuts(_load_model(args.model), imgsz=args.imgsz)
+    controller = ReplanningController(
+        options,
+        fps=args.fps,
+        transport=args.transport,
+        patience=args.patience,
+        margin=args.margin,
+        load_ceiling=args.load_ceiling,
+    )
+    decisions = simulate_trace(controller, trace)
+
+    print(f"{'t':>3} {'Mbps':>7} {'load':>5} {'cut':>4} {'KB/frame':>9} {'switch':>7}  reason")
+    switches = 0
+    for t, (d, (bw, load)) in enumerate(zip(decisions, trace, strict=True)):
+        switches += d.switched
+        cut = d.plan.cut if d.plan else "-"
+        kb = _kb(d.plan.wire_bytes(args.transport)) if d.plan else "-"
+        load_s = f"{load:.2f}" if load is not None else "-"
+        flag = "SWITCH" if d.switched else ""
+        print(f"{t:>3} {bw:>7.1f} {load_s:>5} {cut!s:>4} {kb:>9} {flag:>7}  {d.reason}")
+    print(f"\n{switches} switch(es) over {len(trace)} observations")
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(
+                [
+                    {
+                        "bandwidth_mbps": bw,
+                        "edge_load": load,
+                        "cut": d.plan.cut if d.plan else None,
+                        "switched": d.switched,
+                        "reason": d.reason,
+                    }
+                    for d, (bw, load) in zip(decisions, trace, strict=True)
+                ],
+                indent=2,
+            )
+        )
+    return 0
+
+
 def _load_optional_bottleneck(path):
     if not path:
         return None
@@ -440,6 +488,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_plan.add_argument("--json", default=None, help="write the chosen plan JSON here")
     p_plan.set_defaults(func=_cmd_plan)
+
+    p_replan = sub.add_parser("replan", help="simulate live re-planning over a bandwidth trace")
+    common(p_replan)
+    p_replan.add_argument(
+        "--trace", required=True, help="JSON list of [mbps] or [mbps, edge_load] rows"
+    )
+    p_replan.add_argument("--fps", type=float, required=True, help="target frame rate")
+    p_replan.add_argument(
+        "--transport", choices=["int8", "fp16", "fp32"], default="int8", help="wire encoding"
+    )
+    p_replan.add_argument("--patience", type=int, default=3, help="stable obs before upgrading")
+    p_replan.add_argument("--margin", type=float, default=0.15, help="upgrade headroom fraction")
+    p_replan.add_argument("--load-ceiling", type=float, default=0.85, help="edge-load fast-offload")
+    p_replan.add_argument("--json", default=None, help="write the decision timeline JSON here")
+    p_replan.set_defaults(func=_cmd_replan)
 
     p_sweep = sub.add_parser("sweep", help="train and price a grid of bottleneck configs")
     common(p_sweep)
