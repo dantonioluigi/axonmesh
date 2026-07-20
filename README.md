@@ -86,6 +86,9 @@ yolosplit evaluate --model yolo11l.pt --data data.yaml \
     --bottleneck bottleneck.pt --json results/eval_bottleneck.json
 ```
 
+No GPU locally? [notebooks/colab_validation.ipynb](notebooks/colab_validation.ipynb)
+runs this on COCO (train2017 → val2017) on a free Colab GPU.
+
 **5. Simulate the adaptive stream** — the edge runs the detector locally and
 per frame ships only what the frame deserves: serialised boxes (11 bytes per
 detection) when confident, (bottlenecked) features when uncertain, the full
