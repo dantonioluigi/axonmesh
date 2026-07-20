@@ -11,7 +11,7 @@ from yolosplit.bottleneck import (
     save_bottleneck,
 )
 from yolosplit.split import SplitRunner, raw_nbytes
-from yolosplit.train import train_bottleneck
+from yolosplit.train import normalize_device, train_bottleneck
 
 
 @pytest.fixture()
@@ -106,6 +106,23 @@ def test_save_load_round_trip(tmp_path, bottleneck, wire):
         b = restored(wire)
     for i in wire:
         torch.testing.assert_close(a[i], b[i])
+
+
+@pytest.mark.parametrize(
+    ("given", "expected"),
+    [
+        ("cpu", "cpu"),
+        ("", "cpu"),
+        ("0", "cuda:0"),
+        ("1", "cuda:1"),
+        ("0,1", "cuda:0"),  # single-GPU training: first index wins
+        ("cuda", "cuda"),
+        ("cuda:0", "cuda:0"),
+        ("mps", "mps"),
+    ],
+)
+def test_normalize_device(given, expected):
+    assert normalize_device(given) == expected
 
 
 def test_training_reduces_loss(det_model, images_dir):
