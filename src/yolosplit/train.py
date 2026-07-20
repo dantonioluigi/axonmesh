@@ -22,6 +22,25 @@ from .measure import IMAGE_SUFFIXES, to_input_tensor
 from .split import SplitRunner
 
 
+def normalize_device(device: str) -> str:
+    """Accept ultralytics-style device strings (``"0"``, ``"0,1"``) for torch.
+
+    ``torch.device`` rejects a bare GPU index like ``"0"``, but that is the
+    convention the rest of the tooling (and ``--device``) uses. Map it to
+    ``"cuda:0"``; ``cpu``/``mps``/``cuda*`` pass through unchanged. Only the
+    first index is used — training here is single-GPU.
+    """
+    d = str(device).strip().lower()
+    if d in ("", "cpu"):
+        return "cpu"
+    if d == "mps" or d.startswith("cuda"):
+        return d
+    first = d.split(",")[0]
+    if first.isdigit():
+        return f"cuda:{first}"
+    return d
+
+
 @dataclass
 class TrainResult:
     """Per-epoch mean loss and final per-level relative reconstruction error."""
@@ -80,7 +99,7 @@ def train_bottleneck(
     Returns the trained bottleneck (in eval mode) and the loss history. The
     detector is frozen and left in eval mode; only bottleneck weights change.
     """
-    dev = torch.device(device)
+    dev = torch.device(normalize_device(device))
     det_model = det_model.to(dev).float().eval()
     for p in det_model.parameters():
         p.requires_grad_(False)
