@@ -205,7 +205,8 @@ Jetson before drawing conclusions about end-to-end delay.
 - [ ] Validate: GPU-train the bottleneck, measure the mAP cost (`evaluate --bottleneck`)
 - [ ] Live re-planning: feed measured bandwidth/GPU metrics into the planner
 - [ ] Kubernetes operator: `SplitInference` CRD, kopf controller, kind e2e
-- [ ] Retraining loop: drift-driven `batch/v1` Jobs + GitOps promotion
+- [ ] Backbone-agnostic split: a generic `torch.fx` graph splitter + task heads
+      behind an adapter contract, so any torch vision model works — not just YOLO
 
 The full gated plan is in [docs/roadmap.md](docs/roadmap.md); the experimental
 method in [docs/experiment-protocol.md](docs/experiment-protocol.md); repo

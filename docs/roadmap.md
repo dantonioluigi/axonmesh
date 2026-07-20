@@ -1,4 +1,4 @@
-# Roadmap: from feasibility probe to Kubernetes operator
+# Roadmap: from feasibility probe to a generic split-computing platform
 
 Where the project goes after v0.3.0, in gated phases. Each phase has an exit
 criterion — a number or a working artifact — and nothing in a later phase
@@ -10,7 +10,7 @@ flowchart LR
     B --> C[P3 containers +<br/>observability 0.6.x]
     C --> D[P4 live re-planning<br/>0.7.x]
     D --> E[P5 operator<br/>0.8.x]
-    E --> F[P6 retraining loop<br/>0.9.x -> 1.0]
+    E --> F[P6 backbone-agnostic<br/>0.9.x -> 1.0]
 ```
 
 ## Phase 1 — Validate the numbers (v0.4.x)
@@ -41,7 +41,7 @@ Everything so far runs in one process. Make the wire real.
   weights.
 - **`yolosplit serve` (cloud)**: receives latents → decodes → runs neck/head →
   returns detections. Also accepts FRAME messages (full inference + enqueue to
-  the retraining store).
+  the hard-frame store).
 - **`yolosplit edge`**: source (directory/camera/RTSP) → local inference →
   policy → transport → send; falls back to local-only when the link is down
   (degraded mode: detections logged, hard frames buffered on disk).
@@ -69,10 +69,10 @@ Deployability and the metrics every later decision consumes.
 - **Prometheus metrics** in both halves: bytes/frame per mode, mode counts,
   drift score, per-stage latency histograms, queue depth. Plus a Grafana
   dashboard JSON in `deploy/`.
-- **Retraining store contract**: FRAME-mode frames land in S3-compatible
+- **Hard-frame store contract**: FRAME-mode frames land in S3-compatible
   storage with sidecar metadata (detections, confidence, drift score at
-  capture). Documented layout — this is the interface the retraining phase
-  builds on.
+  capture). A documented layout the edge writes to — what a downstream training
+  pipeline does with that dataset is out of scope (see below).
 
 **Gate:** `helm install` on a vanilla cluster + edge container on a Jetson (or
 an arm64 emulation smoke) exchanging real traffic, dashboards live.
@@ -120,31 +120,32 @@ Now, and only now, the operator — it is orchestration around proven parts.
 **Gate:** demo on kind: apply CR → system converges; change budget → cut
 switches; kill cloud pod → edge degrades to local-only and recovers.
 
-## Phase 6 — Close the retraining loop (v0.9.x → 1.0)
+## Phase 6 — Backbone-agnostic split (v0.9.x → 1.0)
 
-The reason FRAME-mode frames were saved all along.
+Everything above is built on the ultralytics graph reader. This phase makes the
+split model-agnostic, so the wire protocol, adaptive policy, planner and
+operator work for any torch vision model — not just YOLO.
 
-- **Retrain trigger** in the operator: when the retraining store exceeds a
-  threshold (count or drift-score mass), create a `batch/v1` Job from a
-  user-supplied trainer image (documented contract: input mount, output
-  checkpoint + metrics JSON). Deliberately plain Jobs, not a pipeline engine —
-  one dependency fewer, and enough for a single-step train+eval.
-- **Promotion policy**: the Job's eval metrics must beat the current model on
-  the held-out set before the operator bumps the model artifact reference —
-  otherwise the candidate is parked for human review.
-- **GitOps rollout**: the operator bumps an OCI artifact tag (or opens a PR
-  against a config repo — both documented, Flux/Argo agnostic); the new
-  fingerprint propagates to cloud and edge, which refuse mismatched wires by
-  design (Phase 2).
-- **1.0**: wire protocol and CRD declared stable; from here, semver applies to
-  both.
+- **Generic graph splitter**: trace an arbitrary `torch.nn.Module` with
+  `torch.fx`, then find the cut points and the exact wire set the same way the
+  ultralytics reader does today. Torchvision detectors, `timm` backbones and
+  custom models get the split machinery for free.
+- **Task-agnostic heads**: the wire already carries opaque result bytes; add
+  reference postprocessors beyond YOLO NMS (segmentation, classification) behind
+  a small registry, so a new task is a plugin rather than a fork.
+- **Adapter contract**: a documented interface — `graph`, `wire set`, `cut
+  options`, `postprocess` — that any model backend implements. Ultralytics
+  becomes one adapter among several.
+- **1.0**: wire protocol, CRD and the adapter contract declared stable; from
+  here semver applies to all three.
 
 ## Out of scope (still)
 
 - Multi-model / multi-tenant serving, GPU sharing (MIG/MPS) tuning.
-- Training the *detector* itself (the trainer image is the user's).
-- Non-YOLO architectures — the splitter is general (`m.f`/`m.i` graphs), but
-  claims stay within what the test suite covers.
+- Training models and orchestrating retraining — out of scope by design; the
+  edge queues hard frames (FRAME mode) to a store, but what happens to that
+  dataset afterwards is left to whatever training pipeline the user already
+  runs.
 
 ## Standing rules across phases
 
