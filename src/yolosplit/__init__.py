@@ -28,6 +28,13 @@ from .protocol import (
     unpack_tensors,
 )
 from .quantize import QuantizedTensor, dequantize, quantize
+from .replanning import (
+    BandwidthEstimator,
+    ReplanDecision,
+    ReplanningController,
+    cpu_load,
+    simulate_trace,
+)
 from .server import CloudServer, Metrics, start_metrics_server
 from .split import SplitRunner, WireStats
 from .stream import FrameReport, simulate_stream, summarize_stream
@@ -43,10 +50,11 @@ from .topology import (
 from .train import TrainResult, train_bottleneck
 from .transport import Int8Transport, RawTransport
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     "AdaptivePolicy",
+    "BandwidthEstimator",
     "Bottleneck",
     "BottleneckTransport",
     "CloudServer",
@@ -67,6 +75,8 @@ __all__ = [
     "ProtocolError",
     "QuantizedTensor",
     "RawTransport",
+    "ReplanDecision",
+    "ReplanningController",
     "SplitRunner",
     "SweepConfig",
     "SweepResult",
@@ -78,6 +88,7 @@ __all__ = [
     "budget_bytes_per_frame",
     "build_graph",
     "compare_map",
+    "cpu_load",
     "dequantize",
     "deserialize_detections",
     "enumerate_cuts",
@@ -92,6 +103,7 @@ __all__ = [
     "save_bottleneck",
     "serialize_detections",
     "simulate_stream",
+    "simulate_trace",
     "split_inference",
     "start_metrics_server",
     "summarize_stream",
