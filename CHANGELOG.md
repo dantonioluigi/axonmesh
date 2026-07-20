@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- SplitInference Kubernetes operator (`operator/`): a `SplitInference` CRD
+  (`split.dev/v1alpha1`) and a kopf controller that renders and reconciles the
+  cloud-half Deployment + Service and an edge-facing ConfigMap (the resolved
+  cut — fixed, or a bandwidth/FPS budget for the edge to plan against live —
+  plus policy thresholds). Children carry ownerReferences, so deleting the CR
+  garbage-collects them. The reconcile logic is pure (spec in, manifests out)
+  and unit-tested without a cluster; a kind e2e (`deploy/kind/e2e.sh`, run in
+  CI) drives create/update/delete against a real API server. Ships CRD, RBAC,
+  operator Deployment and a small operator image (no torch — it renders
+  manifests, it does not load the model).
+
 ## 0.5.0 — 2026-07-20
 
 The split becomes real — and Kubernetes-ready.

@@ -1,0 +1,29 @@
+name: operator-e2e
+
+on:
+  push:
+    branches: [main]
+    paths: ["operator/**", "deploy/kind/**", ".github/workflows/operator-e2e.yml"]
+  pull_request:
+    paths: ["operator/**", "deploy/kind/**", ".github/workflows/operator-e2e.yml"]
+
+jobs:
+  kind-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install operator deps
+        run: pip install "kopf>=1.37" "kubernetes>=28"
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: splitinference-e2e
+      - name: Run the operator e2e
+        env:
+          PYTHON: python
+          CLUSTER: splitinference-e2e
+          KEEP: "1"   # kind-action manages the cluster lifecycle
+        run: deploy/kind/e2e.sh

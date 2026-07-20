@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: splitinference-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: splitinference-operator
+rules:
+  # The custom resource and its status.
+  - apiGroups: [split.dev]
+    resources: [splitinferences, splitinferences/status]
+    verbs: [list, watch, get, patch, update]
+  # kopf needs to post events and manage its peering/finalizers.
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create]
+  - apiGroups: [kopf.dev]
+    resources: [clusterkopfpeerings]
+    verbs: [list, watch, patch, get]
+  # The objects the operator renders and owns.
+  - apiGroups: [""]
+    resources: [configmaps, services]
+    verbs: [create, get, list, watch, patch, update, delete]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [create, get, list, watch, patch, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: splitinference-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: splitinference-operator
+subjects:
+  - kind: ServiceAccount
+    name: splitinference-operator
+    namespace: default

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yolosplit"
-version = "0.5.0"
+version = "0.6.0"
 description = "Split computing experiments for YOLO11: cut the network after the backbone and ship quantised intermediate tensors instead of JPEG frames."
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.24",
     "opencv-python>=4.8",
+    "psutil>=5.9",
     "torch>=2.0",
     "ultralytics>=8.3",
 ]
@@ -33,6 +34,11 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.6",
+]
+# The Kubernetes operator (operator/) — not needed to use yolosplit itself.
+operator = [
+    "kopf>=1.37",
+    "kubernetes>=28",
 ]
 
 [project.scripts]
@@ -52,7 +58,8 @@ target-version = "py310"
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "operator/tests"]
+pythonpath = ["operator"]
 addopts = "-ra --cov=yolosplit --cov-report=term-missing"
 filterwarnings = ["ignore::DeprecationWarning:ultralytics.*"]
 

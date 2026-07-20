@@ -1,0 +1,86 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: splitinferences.split.dev
+spec:
+  group: split.dev
+  scope: Namespaced
+  names:
+    kind: SplitInference
+    plural: splitinferences
+    singular: splitinference
+    shortNames: [spliti]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Cut
+          type: string
+          jsonPath: .status.cut.mode
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [model, cloud]
+              properties:
+                model:
+                  type: object
+                  required: [url]
+                  properties:
+                    url:
+                      type: string
+                      description: HTTP(S) source for the .pt checkpoint.
+                    fingerprint:
+                      type: string
+                      description: Optional weight fingerprint, echoed to the edge config.
+                bottleneck:
+                  type: object
+                  properties:
+                    url: { type: string }
+                    fingerprint: { type: string }
+                cut:
+                  type: object
+                  properties:
+                    mode:
+                      type: string
+                      enum: [fixed, auto]
+                      default: auto
+                    fixed:
+                      type: integer
+                      description: Cut layer index when mode=fixed.
+                    auto:
+                      type: object
+                      properties:
+                        bandwidthMbps: { type: number, default: 50 }
+                        fps: { type: number, default: 10 }
+                        transport:
+                          type: string
+                          enum: [int8, fp16, fp32]
+                          default: int8
+                policy:
+                  type: object
+                  properties:
+                    confHigh: { type: number, default: 0.75 }
+                    confLow: { type: number, default: 0.4 }
+                    driftThreshold: { type: number, default: 0.5 }
+                cloud:
+                  type: object
+                  required: [image]
+                  properties:
+                    image: { type: string }
+                    replicas: { type: integer, default: 1 }
+                    imgsz: { type: integer, default: 640 }
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true

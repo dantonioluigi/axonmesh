@@ -151,6 +151,30 @@ An initContainer downloads the checkpoint (or mount a PVC via
 Prometheus `/metrics` (set `serviceMonitor.enabled=true` with the Prometheus
 Operator). Point edge devices at the resulting Service DNS name.
 
+### Operator (declarative)
+
+For fleets, `operator/` provides a `SplitInference` custom resource and a kopf
+controller that manages the cloud Deployment/Service and an edge-facing
+ConfigMap for you:
+
+```yaml
+apiVersion: split.dev/v1alpha1
+kind: SplitInference
+metadata: { name: detector }
+spec:
+  model: { url: https://your-store/model.pt }
+  bottleneck: { url: https://your-store/bottleneck.pt }
+  cut: { mode: auto, auto: { bandwidthMbps: 50, fps: 10 } }
+  cloud: { image: ghcr.io/you/yolosplit-cloud:0.5.0, replicas: 2 }
+```
+
+`cut.mode: fixed` pins a layer; `auto` writes the budget into the edge
+ConfigMap for the edge to plan against live (see live re-planning). Install the
+CRD + RBAC from `operator/manifests/`, run the operator (image in
+`operator/Dockerfile`), and `kubectl apply` the resource. The reconcile logic
+is pure and unit-tested; `deploy/kind/e2e.sh` exercises it end-to-end on a kind
+cluster (also run in CI).
+
 ## Not just YOLO / not just Jetson
 
 The split machinery is deliberately generic and the specifics are seams, not
@@ -202,11 +226,11 @@ Jetson before drawing conclusions about end-to-end delay.
 - [x] Cut planner: pick the split point from a bandwidth/FPS budget (0.3.0)
 - [x] Bottleneck sweep: bytes-vs-mAP Pareto tooling (0.4.0)
 - [x] Real network split + wire protocol + Docker/Helm deploy (0.5.0)
+- [x] Live re-planning: bandwidth/load-driven cut selection with hysteresis (0.6.0)
 - [ ] Validate: GPU-train the bottleneck, measure the mAP cost (`evaluate --bottleneck`)
 - [ ] Live re-planning: feed measured bandwidth/GPU metrics into the planner
-- [ ] Kubernetes operator: `SplitInference` CRD, kopf controller, kind e2e
-- [ ] Backbone-agnostic split: a generic `torch.fx` graph splitter + task heads
-      behind an adapter contract, so any torch vision model works — not just YOLO
+- [x] Kubernetes operator: `SplitInference` CRD, kopf controller, kind e2e
+- [ ] Retraining loop: drift-driven `batch/v1` Jobs + GitOps promotion
 
 The full gated plan is in [docs/roadmap.md](docs/roadmap.md); the experimental
 method in [docs/experiment-protocol.md](docs/experiment-protocol.md); repo
