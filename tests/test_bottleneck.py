@@ -135,11 +135,42 @@ def test_training_reduces_loss(det_model, images_dir):
         batch=3,
         lr=1e-3,
         imgsz=160,
+        progress=False,
     )
     assert len(result.epoch_losses) == 4
     assert result.epoch_losses[-1] < result.epoch_losses[0]
     assert set(result.relative_errors) == {4, 6, 10}
     assert all(err > 0 for err in result.relative_errors.values())
+
+
+def test_training_progress_prints_per_epoch(det_model, images_dir, capsys):
+    train_bottleneck(
+        det_model,
+        images_dir,
+        latent_channels=4,
+        stride=1,
+        epochs=2,
+        batch=3,
+        imgsz=160,
+        progress=True,
+    )
+    out = capsys.readouterr().out
+    assert "epoch 1/2: normalised MSE" in out
+    assert "epoch 2/2: normalised MSE" in out
+
+
+def test_training_progress_false_is_silent(det_model, images_dir, capsys):
+    train_bottleneck(
+        det_model,
+        images_dir,
+        latent_channels=4,
+        stride=1,
+        epochs=1,
+        batch=3,
+        imgsz=160,
+        progress=False,
+    )
+    assert capsys.readouterr().out == ""
 
 
 def test_training_rejects_empty_dir(det_model, tmp_path):

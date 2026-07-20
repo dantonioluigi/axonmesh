@@ -25,6 +25,7 @@ dependencies = [
     "opencv-python>=4.8",
     "psutil>=5.9",
     "torch>=2.0",
+    "tqdm>=4.65",
     "ultralytics>=8.3",
 ]
 

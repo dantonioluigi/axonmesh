@@ -119,6 +119,7 @@ def run_sweep(
                 imgsz=imgsz,
                 limit=limit,
                 device=device,
+                progress=False,  # the sweep prints its own per-config summary
             )
         except ValueError as err:
             print(f"skip latent={latent_channels} stride={stride}: {err}")
