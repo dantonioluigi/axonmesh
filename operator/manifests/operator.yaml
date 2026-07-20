@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: splitinference-operator
+  labels:
+    app.kubernetes.io/name: splitinference-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: splitinference-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: splitinference-operator
+    spec:
+      serviceAccountName: splitinference-operator
+      containers:
+        - name: operator
+          image: ghcr.io/dantonioluigi/splitinference-operator:latest
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

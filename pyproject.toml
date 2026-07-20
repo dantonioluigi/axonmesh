@@ -34,6 +34,11 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
 ]
+# The Kubernetes operator (operator/) — not needed to use yolosplit itself.
+operator = [
+    "kopf>=1.37",
+    "kubernetes>=28",
+]
 
 [project.scripts]
 yolosplit = "yolosplit.cli:main"
@@ -52,7 +57,8 @@ target-version = "py310"
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "operator/tests"]
+pythonpath = ["operator"]
 addopts = "-ra --cov=yolosplit --cov-report=term-missing"
 filterwarnings = ["ignore::DeprecationWarning:ultralytics.*"]
 
