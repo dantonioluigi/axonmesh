@@ -61,7 +61,11 @@ def build_graph(det_model: nn.Module) -> list[LayerInfo]:
                     "which is not an earlier layer or the model input"
                 )
         name = getattr(m, "type", type(m).__name__).rsplit(".", 1)[-1]
-        graph.append(LayerInfo(index=m.i, name=name, sources=sources, params=int(m.np)))
+        # Compute the parameter count directly rather than reading ``m.np``:
+        # ultralytics sets ``m.np`` during parse_model, but it is not always
+        # present on modules restored from a serialised checkpoint.
+        params = sum(p.numel() for p in m.parameters())
+        graph.append(LayerInfo(index=m.i, name=name, sources=sources, params=params))
     return graph
 
 

@@ -87,6 +87,17 @@ def test_build_graph_rejects_forward_references(det_model):
         layer.f = original
 
 
+def test_build_graph_without_np_attribute(det_model):
+    """Checkpoints restored from disk may lack ``m.np``; params come from the weights."""
+    for m in det_model.model:
+        if hasattr(m, "np"):
+            del m.np
+    graph = build_graph(det_model)
+    assert len(graph) == len(det_model.model)
+    for layer, m in zip(graph, det_model.model, strict=True):
+        assert layer.params == sum(p.numel() for p in m.parameters())
+
+
 def test_probe_shapes_match_strides(det_model, graph):
     shapes = probe_output_shapes(det_model, imgsz=160)
     assert len(shapes) == len(graph)
