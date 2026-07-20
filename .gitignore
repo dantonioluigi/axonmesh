@@ -26,3 +26,6 @@ results/
 .vscode/
 .idea/
 .DS_Store
+
+# operator e2e runtime log
+deploy/kind/operator.log

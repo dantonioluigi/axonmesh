@@ -1,0 +1,24 @@
+apiVersion: split.dev/v1alpha1
+kind: SplitInference
+metadata:
+  name: detector
+spec:
+  model:
+    url: https://your-store/model.pt
+    fingerprint: ""            # optional; echoed to the edge config for the handshake
+  bottleneck:
+    url: https://your-store/bottleneck.pt
+  cut:
+    mode: auto                 # 'fixed' pins a layer; 'auto' hands the edge a budget
+    auto:
+      bandwidthMbps: 50
+      fps: 10
+      transport: int8
+  policy:
+    confHigh: 0.75
+    confLow: 0.4
+    driftThreshold: 0.5
+  cloud:
+    image: ghcr.io/dantonioluigi/yolosplit-cloud:0.5.0
+    replicas: 2
+    imgsz: 640
