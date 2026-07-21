@@ -11,7 +11,7 @@ from axonmesh.bottleneck import (
     save_bottleneck,
 )
 from axonmesh.split import SplitRunner, raw_nbytes
-from axonmesh.train import _tensors, normalize_device, train_bottleneck
+from axonmesh.train import _tensors, normalize_device, output_error, train_bottleneck
 
 
 @pytest.fixture()
@@ -218,3 +218,18 @@ def test_tensors_walks_whatever_the_head_returns():
     assert _tensors((a, [b, (c,)])) == [a, b, c]  # nested containers, in order
     assert _tensors({"pred": a, "aux": [b]}) == [a, b]
     assert _tensors(("not a tensor", 7, None)) == []
+
+
+def test_output_error_ranks_codecs_by_what_the_model_sees(det_model, images_dir):
+    runner = SplitRunner(det_model)
+    paths = sorted(images_dir.iterdir())
+    torch.manual_seed(15)
+    channels = {i: t.shape[1] for i, t in runner.edge(torch.rand(1, 3, 160, 160)).items()}
+    untrained = Bottleneck(channels, latent_channels=4, stride=1)
+    trained, _ = train_bottleneck(
+        det_model, images_dir, latent_channels=4, stride=1, epochs=3, batch=3,
+        imgsz=160, progress=False,
+    )
+    before = output_error(runner, untrained, paths, imgsz=160, batch=3)
+    after = output_error(runner, trained, paths, imgsz=160, batch=3)
+    assert 0 < after < before

@@ -2,8 +2,15 @@
 
 Trains one bottleneck per configuration (latent channels x stride) and prices
 each on the same sample of frames: serialised INT8 latent bytes (plain and
-zlib), the JPEG baseline, and the feature reconstruction error. Optionally —
-when a dataset YAML is given — the end-to-end mAP cost per configuration.
+zlib), the JPEG baseline, and the error the codec induces on the model's own
+output. Optionally — when a dataset YAML is given — the end-to-end mAP cost
+per configuration.
+
+The Pareto front is drawn against output error, not reconstruction error: a
+codec trained against the task improves the first while the second gets worse
+(see the 0.8.0 changelog), so ranking on reconstruction ranks the wrong thing.
+Reconstruction error is still reported, because it is what the training loss
+minimises and a sanity check on it is cheap.
 
 Configurations whose stride does not divide the feature maps at the chosen
 image size are skipped, not fatal: a sweep that dies mid-grid wastes every
@@ -25,7 +32,7 @@ from .bottleneck import Bottleneck
 from .measure import jpeg_nbytes, letterbox, to_input_tensor
 from .quantize import quantize
 from .split import SplitRunner
-from .train import TrainResult, _image_paths, train_bottleneck
+from .train import TrainResult, _image_paths, output_error, train_bottleneck
 
 
 @dataclass(frozen=True)
@@ -42,7 +49,8 @@ class SweepResult:
     int8_bytes: int  # mean serialised latent bytes/frame
     int8_zlib_bytes: int
     jpeg_bytes: int  # mean JPEG baseline on the same letterboxed frames
-    relative_error: float  # mean over pyramid levels
+    relative_error: float  # feature reconstruction, mean over pyramid levels
+    output_error: float  # relative error induced on the model output
     epoch_losses: list[float]
     pareto: bool = False
 
@@ -74,15 +82,13 @@ def _price_bottleneck(
 
 
 def mark_pareto(results: list[SweepResult]) -> None:
-    """Flag configurations not dominated on (zlib bytes, reconstruction error)."""
+    """Flag configurations not dominated on (zlib bytes, output error)."""
     for r in results:
         r.pareto = not any(
             other is not r
             and other.int8_zlib_bytes <= r.int8_zlib_bytes
-            and other.relative_error <= r.relative_error
-            and (
-                other.int8_zlib_bytes < r.int8_zlib_bytes or other.relative_error < r.relative_error
-            )
+            and other.output_error <= r.output_error
+            and (other.int8_zlib_bytes < r.int8_zlib_bytes or other.output_error < r.output_error)
             for other in results
         )
 
@@ -135,6 +141,7 @@ def run_sweep(
             continue
         runner = SplitRunner(det_model, cut=cut)
         int8, int8_zlib, jpeg = _price_bottleneck(bottleneck, runner, sample_paths, imgsz, quality)
+        induced = output_error(runner, bottleneck, sample_paths, imgsz, device=device)
         results.append(
             SweepResult(
                 config=SweepConfig(latent_channels, stride),
@@ -142,6 +149,7 @@ def run_sweep(
                 int8_zlib_bytes=int8_zlib,
                 jpeg_bytes=jpeg,
                 relative_error=_mean_error(train_result),
+                output_error=induced,
                 epoch_losses=train_result.epoch_losses,
             )
         )
@@ -156,8 +164,9 @@ def _mean_error(train_result: TrainResult) -> float:
 def to_markdown(results: list[SweepResult]) -> str:
     """Sweep results as a markdown table, smallest wire first."""
     header = (
-        "| latent | stride | int8 KB | int8+z KB | jpeg KB | vs jpeg | rel err | pareto |\n"
-        "|---:|---:|---:|---:|---:|---:|---:|:---:|"
+        "| latent | stride | int8 KB | int8+z KB | jpeg KB | vs jpeg "
+        "| out err | recon err | pareto |\n"
+        "|---:|---:|---:|---:|---:|---:|---:|---:|:---:|"
     )
     lines = [header]
     for r in sorted(results, key=lambda r: r.int8_zlib_bytes):
@@ -165,7 +174,8 @@ def to_markdown(results: list[SweepResult]) -> str:
             f"| {r.config.latent_channels} | {r.config.stride} "
             f"| {r.int8_bytes / 1024:.1f} | {r.int8_zlib_bytes / 1024:.1f} "
             f"| {r.jpeg_bytes / 1024:.1f} | {r.vs_jpeg:.2f}x "
-            f"| {r.relative_error:.3f} | {'*' if r.pareto else ''} |"
+            f"| {r.output_error:.3f} | {r.relative_error:.3f} "
+            f"| {'*' if r.pareto else ''} |"
         )
     return "\n".join(lines)
 
@@ -180,6 +190,7 @@ def to_dicts(results: list[SweepResult]) -> list[dict]:
             "jpeg_bytes": r.jpeg_bytes,
             "vs_jpeg": r.vs_jpeg,
             "relative_error": r.relative_error,
+            "output_error": r.output_error,
             "epoch_losses": r.epoch_losses,
             "pareto": r.pareto,
         }

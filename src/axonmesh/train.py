@@ -20,6 +20,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
+from statistics import mean
 
 import cv2
 import torch
@@ -126,6 +127,38 @@ def _task_loss(
         raise RuntimeError("cloud half returned a different output structure for the same input")
     losses = [_normalised_mse(a, b) for a, b in zip(through, target_out, strict=True)]
     return torch.stack(losses).mean()
+
+
+@torch.no_grad()
+def output_error(
+    runner: SplitRunner,
+    bottleneck: Bottleneck,
+    paths: list[Path],
+    imgsz: int = 640,
+    batch: int = 4,
+    device: str = "cpu",
+) -> float:
+    """Relative error the codec induces on the model's output, averaged.
+
+    The honest quality axis for a codec, and cheap: one extra pass through the
+    cloud half per batch, against mAP's full validation run. Reconstruction
+    error measures something else — a codec can improve here while getting
+    worse there, and does.
+    """
+    dev = torch.device(normalize_device(device))
+    errors = []
+    for start in range(0, len(paths), batch):
+        x = _load_batch(paths[start : start + batch], imgsz, dev)
+        wire = runner.edge(x)
+        baseline = _tensors(runner.cloud(wire))
+        through = _tensors(runner.cloud(bottleneck(wire)))
+        errors.append(
+            mean(
+                ((a - b).norm() / (b.norm() + 1e-8)).item()
+                for a, b in zip(through, baseline, strict=True)
+            )
+        )
+    return mean(errors)
 
 
 def train_bottleneck(
