@@ -29,7 +29,7 @@ import torch.nn.functional as F
 
 from .bottleneck import Bottleneck
 from .measure import IMAGE_SUFFIXES, to_input_tensor
-from .split import SplitRunner
+from .split import SplitRunner, Transport, primary_output
 
 try:  # tqdm ships with ultralytics; degrade gracefully if it is ever absent.
     from tqdm.auto import tqdm
@@ -137,6 +137,7 @@ def output_error(
     imgsz: int = 640,
     batch: int = 4,
     device: str = "cpu",
+    transport: Transport | None = None,
 ) -> float:
     """Relative error the codec induces on the model's output, averaged.
 
@@ -144,14 +145,20 @@ def output_error(
     cloud half per batch, against mAP's full validation run. Reconstruction
     error measures something else — a codec can improve here while getting
     worse there, and does.
+
+    Measured on :func:`~axonmesh.split.primary_output`, i.e. the same tensor
+    the server's postprocess consumes. ``transport`` prices the codec as it is
+    actually deployed (encode → INT8 → decode); leaving it out measures the
+    autoencoder alone, which is a different and more flattering question.
     """
     dev = torch.device(normalize_device(device))
     errors = []
     for start in range(0, len(paths), batch):
         x = _load_batch(paths[start : start + batch], imgsz, dev)
         wire = runner.edge(x)
-        baseline = _tensors(runner.cloud(wire))
-        through = _tensors(runner.cloud(bottleneck(wire)))
+        received = bottleneck(wire) if transport is None else transport(wire)[0]
+        baseline = _tensors(primary_output(runner.cloud(wire)))
+        through = _tensors(primary_output(runner.cloud(received)))
         errors.append(
             mean(
                 ((a - b).norm() / (b.norm() + 1e-8)).item()
