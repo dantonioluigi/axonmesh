@@ -9,6 +9,14 @@ deployment.** Cut a network in two, run the first half on the edge device, ship
 *quantised intermediate tensors* instead of frames, and finish inference in the
 cloud — with the bandwidth, latency and accuracy costs measured, not assumed.
 
+Measured, including when the answer is unflattering. On public weights, at a
+rate comparable to a JPEG frame, the learned codec ships *more* bytes than the
+JPEG and returns half the mAP — so at these cuts split inference does not win
+on bandwidth, and the reasons it is still worth deploying are privacy, edge
+compute and a wire cost that does not move with the scene
+([docs/validation.md](docs/validation.md)). The tooling here exists to find
+that out for your model before a deployment does.
+
 ```python
 from axonmesh import SplitModel, Int8Transport
 
@@ -95,11 +103,27 @@ see [docs/validation.md](docs/validation.md), including what it does not yet
 buy:
 
 ```bash
+# where should the latent budget go? measured, no training needed
+axonmesh allocate --model yolo11l.pt --images path/to/images/train
+#   proposed --latent-channels 4:3,6:13,10:65  (same bytes, redistributed)
+
 axonmesh train-bottleneck --model yolo11l.pt \
-    --images path/to/images/train --device 0 --out bottleneck.pt
+    --images path/to/images/train --device 0 \
+    --latent-channels 4:3,6:13,10:65 --out bottleneck.pt
 axonmesh evaluate --model yolo11l.pt --data data.yaml \
     --bottleneck bottleneck.pt --json results/eval_bottleneck.json
 ```
+
+`allocate` exists because one latent width for every wire level spends the
+budget where the pixels are, not where the accuracy is: on YOLO11n the
+shallowest level takes 72% of the bytes and causes 22% of the damage, while the
+deepest takes 6% and causes 47%. It coarsens each level in turn and reports what
+the model's output does, so the split is measured rather than guessed.
+
+`train-bottleneck` holds frames out before the first step and closes with the
+error the codec induces on the model's output over those frames — the number
+that tracks mAP. Per-level reconstruction error still prints, marked as the
+diagnostic it is; it can improve while accuracy gets worse, and did.
 
 No GPU locally? [notebooks/colab_validation.ipynb](notebooks/colab_validation.ipynb)
 runs this on COCO (train2017 → val2017) on a free Colab GPU.
@@ -271,9 +295,35 @@ backbone cut (layer 10, wire set = P3/P4/P5, i.e. layers 4/6/10):
 INT8+zlib ships ~30x more bytes than the JPEG the model would otherwise consume.
 This confirms the known risk rather than killing the idea — it quantifies the
 gap a **learned bottleneck at the cut** has to close (~30x on top of INT8+zlib)
-for feature shipping to beat frame shipping. mAP cost of INT8 (via
-`axonmesh evaluate`) is only worth measuring once a bottleneck
-makes the size competitive.
+for feature shipping to beat frame shipping.
+
+**And the bytes are only half the comparison.** Shipping the JPEG frame and
+running the unsplit model in the cloud costs bandwidth and *nothing else* — it
+is the baseline accuracy by construction. Measured on public weights and data
+(yolo11n @320; every codec row trained on COCO val2017 and evaluated on
+coco128, which share no images):
+
+| what crosses the wire | KB/frame | mAP50-95 |
+|---|---:|---:|
+| JPEG q50 frame, cloud runs everything | 11.3 | **0.385** |
+| raw INT8 wire tensors | 273 | 0.385 |
+| learned bottleneck, 8 latent channels | 3.8 | 0.154 |
+| learned bottleneck, 32ch, measured allocation | 14.1 | 0.195 |
+
+At a JPEG-comparable rate the codec ships more bytes than the JPEG and returns
+half the accuracy, and 3.7x the wire buys 0.041 mAP — the curve is flat.
+`axonmesh inspect` shows why: across all 23 cuts the smallest wire set is
+100 KB as INT8 against 11 KB for the coded frame. A JPEG is already a very good
+code for a natural image, and no cut of this network is smaller than the image
+it came from.
+
+So **split inference here does not win on bandwidth**. What it does win is what
+bandwidth was standing in for: raw frames never leave the device (activations
+are not a reconstructable image), the cloud never runs the whole model, and the
+wire cost is identical every frame instead of moving with scene complexity.
+The full reading — including the epochs, data volume, latent width and bit
+allocation that were tried and quantified — is in
+[docs/validation.md](docs/validation.md).
 
 Latency numbers measured off-device are not representative; re-measure on the
 Jetson before drawing conclusions about end-to-end delay.
