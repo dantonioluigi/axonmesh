@@ -239,3 +239,43 @@ def test_output_error_ranks_codecs_by_what_the_model_sees(det_model, images_dir)
     before = output_error(runner, untrained, paths, imgsz=160, batch=3)
     after = output_error(runner, trained, paths, imgsz=160, batch=3)
     assert 0 < after < before
+
+
+def test_quality_is_scored_on_frames_held_out_of_training(det_model, images_dir):
+    """The reported number must not come from frames the codec fitted.
+
+    A codec that memorised its training set scores perfectly on it, which is
+    exactly the reading that makes an unfinished codec look finished.
+    """
+    _, result = train_bottleneck(
+        det_model,
+        images_dir,
+        latent_channels=4,
+        stride=1,
+        epochs=1,
+        batch=2,
+        imgsz=160,
+        progress=False,
+        task_weight=0.0,
+        val_fraction=0.34,  # 3 frames in the fixture -> 1 held out
+    )
+    assert result.val_images == 1
+    assert result.train_images == 2
+    assert result.output_error is not None and result.output_error > 0
+
+
+def test_no_held_out_frames_means_no_quality_claim(det_model, images_dir):
+    _, result = train_bottleneck(
+        det_model,
+        images_dir,
+        latent_channels=4,
+        stride=1,
+        epochs=1,
+        batch=2,
+        imgsz=160,
+        progress=False,
+        task_weight=0.0,
+        val_fraction=0.0,
+    )
+    assert result.val_images == 0
+    assert result.output_error is None  # silence beats a number measured on training data

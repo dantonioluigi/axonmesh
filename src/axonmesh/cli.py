@@ -145,12 +145,41 @@ def _cmd_train_bottleneck(args: argparse.Namespace) -> int:
         device=args.device,
         quant_noise=not args.no_quant_noise,
         task_weight=args.task_weight,
+        val_fraction=args.val_fraction,
     )  # train_bottleneck prints per-epoch progress itself
     for i, err in sorted(result.relative_errors.items()):
-        print(f"layer {i}: relative reconstruction error {err:.3f}")
+        print(f"layer {i}: relative reconstruction error {err:.3f} (diagnostic only)")
     save_bottleneck(bottleneck, args.out)
     print(f"bottleneck saved to {args.out}")
+    _report_verdict(result)
     return 0
+
+
+def _report_verdict(result) -> None:
+    """Say what the run is worth, in the terms the deployment will be judged on.
+
+    Reconstruction error is what the loss minimises, not what accuracy tracks,
+    so printing it alone invites the reader to conclude a codec is finished
+    when it is not. Held-out output error is the number that moves with mAP.
+    """
+    if result.output_error is None:
+        print(
+            "no held-out frames: quality unmeasured (--val-fraction 0 was set, or too few images)"
+        )
+        return
+    err = result.output_error
+    print(f"\nheld-out output error: {err:.3f}  <- the number that tracks mAP")
+    if err > 0.05:
+        print(
+            "  This codec measurably changes what the model predicts. Measure the\n"
+            "  real cost before deploying it: axonmesh evaluate --bottleneck <ckpt> --data <yaml>"
+        )
+    if result.train_images < 1000:
+        print(
+            f"  Trained on {result.train_images} images. A codec has to generalise over the\n"
+            f"  feature distribution, not a handful of frames: at this scale more epochs\n"
+            f"  stop helping long before the error is low (see docs/validation.md)."
+        )
 
 
 def _cmd_stream(args: argparse.Namespace) -> int:
@@ -514,6 +543,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.5,
         help="fraction of the loss taken from the head output rather than the "
         "reconstructed features; 0 = pure feature distillation (faster)",
+    )
+    p_train.add_argument(
+        "--val-fraction",
+        type=float,
+        default=0.1,
+        help="fraction of the images held out of training to score the result on "
+        "(0 disables, and leaves the run with no honest quality number)",
     )
     p_train.add_argument("--out", default="bottleneck.pt", help="checkpoint output path")
     p_train.set_defaults(func=_cmd_train_bottleneck)
