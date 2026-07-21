@@ -3,15 +3,15 @@ from __future__ import annotations
 import pytest
 import torch
 
-from splitflow.bottleneck import (
+from axonmesh.bottleneck import (
     Bottleneck,
     BottleneckTransport,
     LevelCodec,
     load_bottleneck,
     save_bottleneck,
 )
-from splitflow.split import SplitRunner, raw_nbytes
-from splitflow.train import normalize_device, train_bottleneck
+from axonmesh.split import SplitRunner, raw_nbytes
+from axonmesh.train import normalize_device, train_bottleneck
 
 
 @pytest.fixture()

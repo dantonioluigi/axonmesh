@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from splitflow.planner import (
+from axonmesh.planner import (
     INT8_TENSOR_OVERHEAD,
     CutOption,
     budget_bytes_per_frame,
     enumerate_cuts,
     plan_cut,
 )
-from splitflow.topology import backbone_cut, wire_indices
+from axonmesh.topology import backbone_cut, wire_indices
 
 
 @pytest.fixture(scope="module")
@@ -76,7 +76,7 @@ def test_backbone_cut_is_among_options(det_model, graph, options):
 
 
 def test_plan_cli(capsys, tmp_path):
-    from splitflow.cli import main
+    from axonmesh.cli import main
 
     report = tmp_path / "plan.json"
     code = main(
@@ -102,7 +102,7 @@ def test_plan_cli(capsys, tmp_path):
 
 
 def test_plan_cli_fails_when_budget_too_small(capsys):
-    from splitflow.cli import main
+    from axonmesh.cli import main
 
     code = main(
         [

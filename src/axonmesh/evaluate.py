@@ -1,7 +1,7 @@
 """End-to-end accuracy of split inference: baseline mAP vs split+quantised mAP.
 
 ``split_inference`` transparently reroutes a DetectionModel's forward pass
-through a :class:`~splitflow.split.SplitRunner`, so the standard ultralytics
+through a :class:`~axonmesh.split.SplitRunner`, so the standard ultralytics
 ``val()``/``predict()`` pipelines (dataloading, letterboxing, NMS, metrics)
 run unchanged on top of the split model.
 """

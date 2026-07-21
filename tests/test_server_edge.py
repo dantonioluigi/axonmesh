@@ -5,13 +5,13 @@ import threading
 import pytest
 import torch
 
-from splitflow.bottleneck import Bottleneck
-from splitflow.edge import EdgeClient, run_edge
-from splitflow.policy import AdaptivePolicy, ConfidenceEMADrift, Detection, Mode
-from splitflow.protocol import ProtocolError
-from splitflow.server import CloudServer, Metrics, start_metrics_server
-from splitflow.split import SplitRunner
-from splitflow.stream import iter_image_frames
+from axonmesh.bottleneck import Bottleneck
+from axonmesh.edge import EdgeClient, run_edge
+from axonmesh.policy import AdaptivePolicy, ConfidenceEMADrift, Detection, Mode
+from axonmesh.protocol import ProtocolError
+from axonmesh.server import CloudServer, Metrics, start_metrics_server
+from axonmesh.split import SplitRunner
+from axonmesh.stream import iter_image_frames
 
 
 def start(server: CloudServer) -> None:
@@ -51,9 +51,9 @@ def test_features_round_trip_matches_local(server, client, det_model, bgr_image)
     assert nbytes > 0
 
     # Replicate the exact pipeline locally: same modules, same INT8 round trip.
-    from splitflow.measure import to_input_tensor
-    from splitflow.policy import deserialize_detections
-    from splitflow.protocol import pack_tensors, unpack_tensors
+    from axonmesh.measure import to_input_tensor
+    from axonmesh.policy import deserialize_detections
+    from axonmesh.protocol import pack_tensors, unpack_tensors
 
     runner = SplitRunner(det_model)
     wire = unpack_tensors(pack_tensors(runner.edge(to_input_tensor(bgr_image, 160))))
@@ -132,7 +132,7 @@ def test_metrics_http_endpoints():
         health = urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz")
         assert health.status == 200
         body = urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics").read().decode()
-        assert 'splitflow_frames_total{mode="features"} 1.0' in body
+        assert 'axonmesh_frames_total{mode="features"} 1.0' in body
         with pytest.raises(urllib.error.HTTPError) as err:
             urllib.request.urlopen(f"http://127.0.0.1:{port}/nope")
         assert err.value.code == 404

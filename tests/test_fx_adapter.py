@@ -10,12 +10,12 @@ import pytest
 import torch
 import torch.nn as nn
 
-from splitflow.adapters import FxAdapter, TraceError, adapter_for
-from splitflow.adapters.fx import _is_traceable_candidate
-from splitflow.model import SplitModel
-from splitflow.split import SplitRunner
-from splitflow.topology import MODEL_INPUT
-from splitflow.transport import Int8Transport
+from axonmesh.adapters import FxAdapter, TraceError, adapter_for
+from axonmesh.adapters.fx import _is_traceable_candidate
+from axonmesh.model import SplitModel
+from axonmesh.split import SplitRunner
+from axonmesh.topology import MODEL_INPUT
+from axonmesh.transport import Int8Transport
 
 
 class SkipNet(nn.Module):
@@ -113,7 +113,7 @@ class TestRegistry:
         assert isinstance(adapter_for(skipnet), FxAdapter)
 
     def test_purpose_built_adapter_still_wins(self, det_model):
-        from splitflow.adapters import UltralyticsAdapter
+        from axonmesh.adapters import UltralyticsAdapter
 
         assert isinstance(adapter_for(det_model), UltralyticsAdapter)
 

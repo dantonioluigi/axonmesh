@@ -1,8 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 — 2026-07-21
 
-- Generic `FxAdapter` (`splitflow.adapters.fx`): recovers the graph of any
+**Renamed to `axonmesh`.** The package is now `axonmesh`, the CLI is `axonmesh`,
+the Helm chart is `axonmesh-cloud`, the Prometheus metrics are prefixed
+`axonmesh_` and the CRD API group is `axonmesh.dev/v1alpha1`. Update imports
+(`yolosplit`/`splitflow` -> `axonmesh`), any scraping rules, and re-apply the
+CRD — the old `split.dev` group is gone, not aliased. The project is a generic
+split-inference framework, not a YOLO demo, and the name now says so.
+
+- Generic `FxAdapter` (`axonmesh.adapters.fx`): recovers the graph of any
   traceable `nn.Module` with `torch.fx` and interprets a span of it, so the
   planner, codecs, wire protocol and facade apply to architectures the project
   was never written for — verified bit-identical on ResNet-18, MobileNetV3 and
@@ -10,14 +17,7 @@
   sorts fallbacks last, so a purpose-built backend added later still wins
   (without that, the catch-all would have made plugins pointless).
   `enumerate_cuts` is adapter-based too, so planning is no longer YOLO-only.
-
-**Renamed to `splitflow`.** The package is now `splitflow`, the CLI is
-`splitflow`, the Helm chart is `splitflow-cloud` and the Prometheus metrics are
-prefixed `splitflow_`. The project is a generic split-inference framework, not a
-YOLO demo, and the name now says so. Update imports (`splitflow` -> `splitflow`)
-and any scraping rules.
-
-- Adapter contract (`splitflow.adapters`): `ModelAdapter` (`graph`,
+- Adapter contract (`axonmesh.adapters`): `ModelAdapter` (`graph`,
   `default_cut`, `probe_shapes`, `run_span`) plus a detector registry, with the
   ultralytics graph reader moved behind `UltralyticsAdapter`. `SplitRunner` runs
   on any adapter; layer caching is derived from the graph instead of
@@ -25,7 +25,7 @@ and any scraping rules.
 - `SplitModel` facade: `split()` to configure cut and codec, `plan()` to choose
   a cut from a bandwidth/FPS budget, `edge()`/`cloud()`/`run()` to execute, and
   `deploy()` to emit the `SplitInference` custom resource.
-- Unified benchmark (`splitflow benchmark`, `splitflow.benchmark`): one command
+- Unified benchmark (`axonmesh benchmark`, `axonmesh.benchmark`): one command
   reports the numbers a deployment decision needs together — per-stage latency
   (preprocess / edge half / wire codec / cloud half), FPS, bytes on the wire vs
   the JPEG baseline, the link rate that implies, optional power (Jetson INA3221
@@ -35,7 +35,7 @@ and any scraping rules.
   loss (`train_bottleneck(..., progress=True)`, the default), so a long run is
   no longer a silent black box; the sweep and tests pass `progress=False`.
 - SplitInference Kubernetes operator (`operator/`): a `SplitInference` CRD
-  (`split.dev/v1alpha1`) and a kopf controller that renders and reconciles the
+  (`axonmesh.dev/v1alpha1`) and a kopf controller that renders and reconciles the
   cloud-half Deployment + Service and an edge-facing ConfigMap (the resolved
   cut — fixed, or a bandwidth/FPS budget for the edge to plan against live —
   plus policy thresholds). Children carry ownerReferences, so deleting the CR

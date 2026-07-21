@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from splitflow.policy import (
+from axonmesh.policy import (
     AdaptivePolicy,
     ConfidenceEMADrift,
     Detection,

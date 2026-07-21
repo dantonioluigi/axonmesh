@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 import torch
 
-from splitflow.split import SplitRunner, raw_nbytes
-from splitflow.topology import backbone_cut, wire_indices
-from splitflow.transport import Int8Transport
+from axonmesh.split import SplitRunner, raw_nbytes
+from axonmesh.topology import backbone_cut, wire_indices
+from axonmesh.transport import Int8Transport
 
 
 @pytest.mark.parametrize("cut", [0, 2, 4, 8, 10, 13, 16, 21])

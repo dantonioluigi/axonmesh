@@ -15,7 +15,7 @@ from splitinference.render import (
 
 BASE = {
     "model": {"url": "https://store/model.pt"},
-    "cloud": {"image": "ghcr.io/x/splitflow-cloud:0.5.0"},
+    "cloud": {"image": "ghcr.io/x/axonmesh-cloud:0.5.0"},
 }
 
 

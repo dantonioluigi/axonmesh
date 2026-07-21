@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from splitflow.topology import (
+from axonmesh.topology import (
     MODEL_INPUT,
     LayerInfo,
     UnsupportedTopologyError,

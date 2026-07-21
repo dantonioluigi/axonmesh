@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "splitflow-cloud.name" . }}
+  name: {{ include "axonmesh-cloud.name" . }}
   labels:
-    {{- include "splitflow-cloud.labels" . | nindent 4 }}
+    {{- include "axonmesh-cloud.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "splitflow-cloud.selectorLabels" . | nindent 6 }}
+      {{- include "axonmesh-cloud.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "splitflow-cloud.selectorLabels" . | nindent 8 }}
+        {{- include "axonmesh-cloud.selectorLabels" . | nindent 8 }}
     spec:
       {{- if .Values.model.url }}
       initContainers:

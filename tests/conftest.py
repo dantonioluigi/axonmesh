@@ -24,7 +24,7 @@ def det_model():
 
 @pytest.fixture(scope="session")
 def graph(det_model):
-    from splitflow.topology import build_graph
+    from axonmesh.topology import build_graph
 
     return build_graph(det_model)
 

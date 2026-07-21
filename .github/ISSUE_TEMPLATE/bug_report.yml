@@ -8,7 +8,7 @@ body:
       label: What happened
       description: What did you run, what did you expect, what did you get instead.
       placeholder: |
-        splitflow measure --model ... --images ...
+        axonmesh measure --model ... --images ...
     validations:
       required: true
   - type: textarea

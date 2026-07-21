@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 import torch
 
-from splitflow.model import SplitModel
-from splitflow.split import SplitRunner
-from splitflow.transport import Int8Transport
+from axonmesh.model import SplitModel
+from axonmesh.split import SplitRunner
+from axonmesh.transport import Int8Transport
 
 
 @pytest.fixture()
@@ -81,7 +81,7 @@ def test_stats_track_the_wire(model, probe):
 class TestDeploy:
     def test_pins_the_current_cut(self, model):
         cr = model.deploy(name="detector", image="img:1", model_url="https://s/m.pt")
-        assert cr["apiVersion"] == "split.dev/v1alpha1"
+        assert cr["apiVersion"] == "axonmesh.dev/v1alpha1"
         assert cr["kind"] == "SplitInference"
         assert cr["metadata"] == {"name": "detector"}
         assert cr["spec"]["cut"] == {"mode": "fixed", "fixed": 10}
@@ -110,7 +110,7 @@ class TestDeploy:
 
 
 def test_accepts_an_adapter_directly(det_model, probe):
-    from splitflow.adapters import UltralyticsAdapter
+    from axonmesh.adapters import UltralyticsAdapter
 
     model = SplitModel(UltralyticsAdapter(det_model), imgsz=160)
     torch.testing.assert_close(

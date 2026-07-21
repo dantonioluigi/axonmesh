@@ -3,14 +3,14 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "splitflow"
-version = "0.7.0"
-description = "Split computing experiments for YOLO11: cut the network after the backbone and ship quantised intermediate tensors instead of JPEG frames."
+name = "axonmesh"
+version = "0.8.0"
+description = "Split inference for vision models: cut a network in two, run the first half on the edge, ship quantised intermediate tensors instead of frames, and finish in the cloud."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Luigi D'Antonio" }]
 requires-python = ">=3.10"
-keywords = ["split-computing", "edge-computing", "yolo", "quantization", "jetson"]
+keywords = ["split-computing", "edge-computing", "inference", "quantization", "kubernetes"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -36,17 +36,17 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
 ]
-# The Kubernetes operator (operator/) — not needed to use splitflow itself.
+# The Kubernetes operator (operator/) — not needed to use axonmesh itself.
 operator = [
     "kopf>=1.37",
     "kubernetes>=28",
 ]
 
 [project.scripts]
-splitflow = "splitflow.cli:main"
+axonmesh = "axonmesh.cli:main"
 
 [project.urls]
-Repository = "https://github.com/dantonioluigi/splitflow"
+Repository = "https://github.com/dantonioluigi/axonmesh"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -64,11 +64,11 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "operator/tests"]
 pythonpath = ["operator"]
-addopts = "-ra --cov=splitflow --cov-report=term-missing"
+addopts = "-ra --cov=axonmesh --cov-report=term-missing"
 filterwarnings = ["ignore::DeprecationWarning:ultralytics.*"]
 
 [tool.coverage.run]
-source = ["splitflow"]
+source = ["axonmesh"]
 
 [tool.coverage.report]
 fail_under = 85

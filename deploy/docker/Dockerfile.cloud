@@ -4,7 +4,7 @@
 # for an NVIDIA CUDA image and drop the CPU torch index, e.g.:
 #   FROM nvcr.io/nvidia/pytorch:24.08-py3
 # Build from the repo root:
-#   docker build -f deploy/docker/Dockerfile.cloud -t splitflow-cloud .
+#   docker build -f deploy/docker/Dockerfile.cloud -t axonmesh-cloud .
 FROM python:3.12-slim
 
 RUN apt-get update \
@@ -20,5 +20,5 @@ RUN pip install --no-cache-dir torch torchvision --index-url https://download.py
 # Weights are provided at runtime (volume, initContainer download, OCI artifact)
 # so the image stays model-agnostic.
 EXPOSE 9095 9090
-ENTRYPOINT ["splitflow", "serve"]
+ENTRYPOINT ["axonmesh", "serve"]
 CMD ["--model", "/models/model.pt", "--host", "0.0.0.0", "--port", "9095", "--metrics-port", "9090"]

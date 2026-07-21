@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from splitflow.transport import Int8Transport, RawTransport
+from axonmesh.transport import Int8Transport, RawTransport
 
 
 @pytest.fixture()

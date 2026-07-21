@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
-API_GROUP = "split.dev"
+API_GROUP = "axonmesh.dev"
 API_VERSION = "v1alpha1"
 KIND = "SplitInference"
 _MANAGED_BY = {"app.kubernetes.io/managed-by": "splitinference-operator"}
@@ -32,7 +32,7 @@ class SpecError(ValueError):
 
 
 def _labels(name: str) -> dict[str, str]:
-    return {"app.kubernetes.io/name": "splitflow-cloud", "split.dev/instance": name} | _MANAGED_BY
+    return {"app.kubernetes.io/name": "axonmesh-cloud", "axonmesh.dev/instance": name} | _MANAGED_BY
 
 
 def owner_reference(name: str, uid: str) -> dict[str, Any]:
@@ -51,7 +51,7 @@ def resolve_cut(spec: dict[str, Any]) -> dict[str, Any]:
     """Normalise ``spec.cut`` into the config the edge/cloud consume.
 
     ``fixed`` pins a layer index; ``auto`` hands the edge a bandwidth/FPS budget
-    to plan against live (see :mod:`splitflow.replanning`). Unknown modes raise.
+    to plan against live (see :mod:`axonmesh.replanning`). Unknown modes raise.
     """
     cut = spec.get("cut", {"mode": "auto"})
     mode = cut.get("mode", "auto")

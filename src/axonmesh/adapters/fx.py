@@ -4,7 +4,7 @@ The ultralytics adapter reads a framework-specific attribute (``m.f``/``m.i``)
 to learn the graph. Most models do not publish one — but every traceable module
 *has* a graph, and ``torch.fx`` can recover it. This adapter symbolically traces
 the model, turns the resulting node DAG into the same :class:`LayerInfo` list
-the rest of splitflow consumes, and interprets a span of nodes on demand.
+the rest of axonmesh consumes, and interprets a span of nodes on demand.
 
 That makes it the fallback backend: registered last, so a purpose-built adapter
 still wins, but anything else traceable (torchvision detectors, ``timm``
@@ -14,7 +14,7 @@ Two things a generic backend cannot borrow from YOLO:
 
 - **Where to cut.** There is no "backbone" to end. The default is the *thinnest
   wire* among reasonably balanced cuts — the natural bottleneck of the graph —
-  and :mod:`splitflow.planner` remains the tool for choosing deliberately.
+  and :mod:`axonmesh.planner` remains the tool for choosing deliberately.
 - **What the output means.** The wire carries opaque result bytes, so the task
   head stays the caller's business (see the server's ``postprocess``).
 """
