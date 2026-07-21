@@ -112,6 +112,30 @@ splitflow stream --model yolo11l.pt --images path/to/images/val \
     --bottleneck bottleneck.pt --json results/stream.json
 ```
 
+**6. Benchmark a configuration** — accuracy, throughput, bandwidth and latency
+only mean something together: a cut that halves the bytes is worthless if it
+doubles the edge latency. One command reports them per stage:
+
+```bash
+splitflow benchmark --model yolo11l.pt --images path/to/frames \
+    --transport int8 --compress --device 0 --json results/bench.json
+# add --data data.yaml to also measure the mAP cost (slower)
+```
+
+```
+| metric                  | value          |
+| latency total           | 295.0 ms       |
+|   · edge half           | 94.6 ms        |
+|   · wire (encode+codec) | 104.2 ms       |
+|   · cloud half          | 93.6 ms        |
+| throughput              | 3.4 FPS        |
+| wire                    | 577.7 KB/frame |
+| wire vs JPEG            | 0.17x          |
+| bandwidth needed        | 16.0 Mbps      |
+```
+
+Power is included on boards that expose it (Jetson INA3221 rails).
+
 Everything is also available as a library:
 
 ```python

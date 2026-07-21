@@ -8,6 +8,13 @@ from .adapters import (
     register_adapter,
     registered_adapters,
 )
+from .benchmark import (
+    BenchmarkResult,
+    StageTimings,
+    benchmark_directory,
+    benchmark_split,
+    read_jetson_power,
+)
 from .bottleneck import (
     Bottleneck,
     BottleneckTransport,
@@ -64,6 +71,7 @@ __version__ = "0.7.0"
 __all__ = [
     "AdaptivePolicy",
     "BandwidthEstimator",
+    "BenchmarkResult",
     "Bottleneck",
     "BottleneckTransport",
     "CloudServer",
@@ -89,6 +97,7 @@ __all__ = [
     "ReplanningController",
     "SplitModel",
     "SplitRunner",
+    "StageTimings",
     "SweepConfig",
     "SweepResult",
     "TrainResult",
@@ -99,6 +108,8 @@ __all__ = [
     "__version__",
     "adapter_for",
     "backbone_cut",
+    "benchmark_directory",
+    "benchmark_split",
     "budget_bytes_per_frame",
     "build_graph",
     "compare_map",
@@ -112,6 +123,7 @@ __all__ = [
     "plan_cut",
     "probe_output_shapes",
     "quantize",
+    "read_jetson_power",
     "register_adapter",
     "registered_adapters",
     "run_edge",

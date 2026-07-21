@@ -5,7 +5,7 @@
 **Renamed to `splitflow`.** The package is now `splitflow`, the CLI is
 `splitflow`, the Helm chart is `splitflow-cloud` and the Prometheus metrics are
 prefixed `splitflow_`. The project is a generic split-inference framework, not a
-YOLO demo, and the name now says so. Update imports (`yolosplit` -> `splitflow`)
+YOLO demo, and the name now says so. Update imports (`splitflow` -> `splitflow`)
 and any scraping rules.
 
 - Adapter contract (`splitflow.adapters`): `ModelAdapter` (`graph`,
@@ -16,6 +16,11 @@ and any scraping rules.
 - `SplitModel` facade: `split()` to configure cut and codec, `plan()` to choose
   a cut from a bandwidth/FPS budget, `edge()`/`cloud()`/`run()` to execute, and
   `deploy()` to emit the `SplitInference` custom resource.
+- Unified benchmark (`splitflow benchmark`, `splitflow.benchmark`): one command
+  reports the numbers a deployment decision needs together — per-stage latency
+  (preprocess / edge half / wire codec / cloud half), FPS, bytes on the wire vs
+  the JPEG baseline, the link rate that implies, optional power (Jetson INA3221
+  rails) and, with `--data`, the mAP cost. Markdown table plus JSON.
 
 - `train-bottleneck` now shows a per-epoch tqdm progress bar with the running
   loss (`train_bottleneck(..., progress=True)`, the default), so a long run is
