@@ -108,13 +108,19 @@ class SplitRunner:
         cache[self.cut] = out
         return {i: cache[i] for i in self.wire}
 
-    def cloud(self, wire: dict[int, torch.Tensor]) -> Any:
-        """Resume from the received wire set and return the model output."""
+    def cloud(self, wire: dict[int, torch.Tensor], grad: bool = False) -> Any:
+        """Resume from the received wire set and return the model output.
+
+        ``grad`` keeps the graph alive through the cloud half. Inference never
+        needs it, but training a codec against the *task* output does: the
+        gradient has to reach the wire tensors through the frozen tail (see
+        :func:`axonmesh.train.train_bottleneck`).
+        """
         cache = dict(wire)
         # Seed with the last edge output; only consumed if layer cut+1 is
         # sequential, in which case it is part of the wire set by construction.
         x = wire.get(self.cut)
-        with torch.no_grad():
+        with torch.enable_grad() if grad else torch.no_grad():
             return self._run_span(self.cut + 1, len(self.graph) - 1, x, cache)
 
     def __call__(self, x: torch.Tensor) -> Any:

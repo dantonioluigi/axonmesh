@@ -101,8 +101,16 @@ def run_sweep(
     device: str = "cpu",
     quality: int = 85,
     sample: int = 4,
+    task_weight: float = 0.0,
 ) -> list[SweepResult]:
-    """Train and price every (latent_channels, stride) configuration."""
+    """Train and price every (latent_channels, stride) configuration.
+
+    ``task_weight`` defaults to 0 here, unlike
+    :func:`~axonmesh.train.train_bottleneck`: the sweep ranks configurations by
+    size against reconstruction error, so paying for a backward pass through
+    the cloud half on every configuration buys nothing it plots. Train the
+    winning configuration again with the task loss on.
+    """
     results: list[SweepResult] = []
     sample_paths = _image_paths(images_dir, limit)[:sample]
     for latent_channels, stride in product(latents, strides):
@@ -120,6 +128,7 @@ def run_sweep(
                 limit=limit,
                 device=device,
                 progress=False,  # the sweep prints its own per-config summary
+                task_weight=task_weight,
             )
         except ValueError as err:
             print(f"skip latent={latent_channels} stride={stride}: {err}")
