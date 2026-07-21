@@ -227,8 +227,14 @@ def test_output_error_ranks_codecs_by_what_the_model_sees(det_model, images_dir)
     channels = {i: t.shape[1] for i, t in runner.edge(torch.rand(1, 3, 160, 160)).items()}
     untrained = Bottleneck(channels, latent_channels=4, stride=1)
     trained, _ = train_bottleneck(
-        det_model, images_dir, latent_channels=4, stride=1, epochs=3, batch=3,
-        imgsz=160, progress=False,
+        det_model,
+        images_dir,
+        latent_channels=4,
+        stride=1,
+        epochs=3,
+        batch=3,
+        imgsz=160,
+        progress=False,
     )
     before = output_error(runner, untrained, paths, imgsz=160, batch=3)
     after = output_error(runner, trained, paths, imgsz=160, batch=3)
