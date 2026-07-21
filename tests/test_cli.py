@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import argparse
 import json
 
 import pytest
 
-from axonmesh.cli import build_parser, main
+from axonmesh.cli import _latents, build_parser, main
 
 MODEL = "yolo11n.yaml"
 
@@ -152,7 +153,10 @@ def test_train_bottleneck_writes_checkpoint(bottleneck_ckpt):
     from axonmesh.bottleneck import load_bottleneck
 
     bottleneck = load_bottleneck(bottleneck_ckpt)
-    assert bottleneck.config["latent_channels"] == 4
+    # A uniform --latent-channels is stored resolved, one width per wire level:
+    # the checkpoint then says what was actually built rather than what was
+    # asked for, and a per-level allocation round-trips through the same field.
+    assert bottleneck.config["latent_channels"] == {4: 4, 6: 4, 10: 4}
     assert bottleneck.config["stride"] == 1
 
 
@@ -210,3 +214,18 @@ def test_stream_with_bottleneck_checkpoint(capsys, images_dir, bottleneck_ckpt):
     )
     assert code == 0
     assert "adaptive total" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("given", "expected"),
+    [("8", 8), ("32", 32), ("4:4,6:16,10:48", {4: 4, 6: 16, 10: 48}), ("10:2", {10: 2})],
+)
+def test_latent_spec_accepts_a_number_or_a_per_level_allocation(given, expected):
+    assert _latents(given) == expected
+
+
+@pytest.mark.parametrize("given", ["4:", "4:x", "a:1", "4:8,", "4:8:9"])
+def test_a_malformed_latent_spec_is_rejected_at_parse_time(given):
+    """Better here than after an hour of training on a misread allocation."""
+    with pytest.raises(argparse.ArgumentTypeError):
+        _latents(given)

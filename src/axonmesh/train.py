@@ -27,7 +27,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .bottleneck import Bottleneck, BottleneckTransport
+from .bottleneck import Bottleneck, BottleneckTransport, Latents
 from .measure import IMAGE_SUFFIXES, to_input_tensor
 from .split import SplitRunner, Transport, primary_output
 
@@ -183,7 +183,7 @@ def train_bottleneck(
     det_model: nn.Module,
     images_dir: str | Path,
     cut: int | None = None,
-    latent_channels: int = 8,
+    latent_channels: Latents = 8,
     stride: int = 2,
     epochs: int = 5,
     batch: int = 4,
