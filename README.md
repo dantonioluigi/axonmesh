@@ -86,10 +86,13 @@ axonmesh evaluate --model yolo11l.pt --data data.yaml \
 ```
 
 **4. Train the learned bottleneck** — the piece that closes the ~30x gap. A
-small per-level autoencoder is trained by feature distillation (detector
-frozen, simulated INT8 noise on the latents); with the defaults
-(`--latent-channels 8 --stride 2`) the INT8 latent is ~17 KB/frame vs ~47 KB
-of JPEG q85:
+small per-level autoencoder is trained with the detector frozen and simulated
+INT8 noise on the latents; with the defaults (`--latent-channels 8 --stride 2`)
+the INT8 latent is ~17 KB/frame vs ~47 KB of JPEG q85. Half the loss is taken
+on the *head output* rather than the reconstructed features
+(`--task-weight`), which is worth ~39% relative mAP at identical wire cost —
+see [docs/validation.md](docs/validation.md), including what it does not yet
+buy:
 
 ```bash
 axonmesh train-bottleneck --model yolo11l.pt \
@@ -281,9 +284,20 @@ Jetson before drawing conclusions about end-to-end delay.
 - [x] Real network split + wire protocol + Docker/Helm deploy (0.5.0)
 - [x] Live re-planning: bandwidth/load-driven cut selection with hysteresis (0.6.0)
 - [x] Kubernetes operator: `SplitInference` CRD, kopf controller, kind e2e
-- [ ] Validate: GPU-train the bottleneck, measure the mAP cost (`evaluate --bottleneck`)
-- [ ] Backbone-agnostic split: a generic `torch.fx` graph splitter + task heads
-      behind an adapter contract, so any torch vision model works — not just YOLO
+- [x] Backbone-agnostic split: adapter contract + generic `torch.fx` splitter,
+      verified bit-identical on ResNet-18, MobileNetV3 and ViT-B/16 (0.7.0)
+- [x] Train the bottleneck against the head output → +39% relative mAP at the
+      same wire cost, and the finding that reconstruction error is not a proxy
+      for accuracy ([docs/validation.md](docs/validation.md))
+- [ ] Close the remaining accuracy gap. At 70x compression on coco128 the codec
+      still costs 39% of mAP50-95, and **spending more bytes does not buy it
+      back**: 4x the latent width moves held-out output error 0.101 → 0.097
+      while the training loss falls 0.291 → 0.247. That gap is generalisation,
+      not capacity, so the next run is full COCO on GPU
+      ([notebooks/colab_validation.ipynb](notebooks/colab_validation.ipynb)) —
+      not a wider codec
+- [ ] Task-head plugins beyond YOLO NMS, so the cloud half serves segmentation
+      and classification heads without a fork
 
 The full gated plan is in [docs/roadmap.md](docs/roadmap.md); the experimental
 method in [docs/experiment-protocol.md](docs/experiment-protocol.md); repo

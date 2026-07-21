@@ -28,12 +28,16 @@ def results(det_model, images_dir):
 
 
 def result(latent, stride, zlib_bytes, err) -> SweepResult:
+    # relative_error is deliberately the inverse of output_error: the Pareto
+    # front must follow the output, so a fixture that agreed on both axes could
+    # not tell which one mark_pareto actually read.
     return SweepResult(
         config=SweepConfig(latent, stride),
         int8_bytes=zlib_bytes * 2,
         int8_zlib_bytes=zlib_bytes,
         jpeg_bytes=10_000,
-        relative_error=err,
+        relative_error=1.0 - err,
+        output_error=err,
         epoch_losses=[1.0],
     )
 
@@ -44,6 +48,7 @@ def test_sweep_trains_every_config(results):
         assert r.int8_bytes > r.int8_zlib_bytes / 2  # zlib can't beat entropy that hard
         assert r.jpeg_bytes > 0
         assert r.relative_error > 0
+        assert r.output_error > 0
         assert len(r.epoch_losses) == 1
 
 
@@ -76,7 +81,7 @@ def test_markdown_and_dicts(results):
 
     dicts = to_dicts(results)
     assert dicts[0]["latent_channels"] in (2, 4)
-    assert all(set(d) >= {"int8_zlib_bytes", "vs_jpeg", "pareto"} for d in dicts)
+    assert all(set(d) >= {"int8_zlib_bytes", "vs_jpeg", "output_error", "pareto"} for d in dicts)
 
 
 def test_sweep_cli(capsys, images_dir, tmp_path):

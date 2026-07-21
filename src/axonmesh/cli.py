@@ -144,6 +144,7 @@ def _cmd_train_bottleneck(args: argparse.Namespace) -> int:
         limit=args.limit,
         device=args.device,
         quant_noise=not args.no_quant_noise,
+        task_weight=args.task_weight,
     )  # train_bottleneck prints per-epoch progress itself
     for i, err in sorted(result.relative_errors.items()):
         print(f"layer {i}: relative reconstruction error {err:.3f}")
@@ -506,6 +507,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_train.add_argument("--device", default="cpu", help="cpu, 0, ...")
     p_train.add_argument(
         "--no-quant-noise", action="store_true", help="disable simulated INT8 noise"
+    )
+    p_train.add_argument(
+        "--task-weight",
+        type=float,
+        default=0.5,
+        help="fraction of the loss taken from the head output rather than the "
+        "reconstructed features; 0 = pure feature distillation (faster)",
     )
     p_train.add_argument("--out", default="bottleneck.pt", help="checkpoint output path")
     p_train.set_defaults(func=_cmd_train_bottleneck)

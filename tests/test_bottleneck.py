@@ -11,7 +11,7 @@ from axonmesh.bottleneck import (
     save_bottleneck,
 )
 from axonmesh.split import SplitRunner, raw_nbytes
-from axonmesh.train import normalize_device, train_bottleneck
+from axonmesh.train import _tensors, normalize_device, output_error, train_bottleneck
 
 
 @pytest.fixture()
@@ -138,6 +138,7 @@ def test_training_reduces_loss(det_model, images_dir):
         lr=1e-3,
         imgsz=160,
         progress=False,
+        task_weight=0.0,
     )
     assert len(result.epoch_losses) == 4
     assert result.epoch_losses[-1] < result.epoch_losses[0]
@@ -155,6 +156,7 @@ def test_training_progress_prints_per_epoch(det_model, images_dir, capsys):
         batch=3,
         imgsz=160,
         progress=True,
+        task_weight=0.0,
     )
     out = capsys.readouterr().out
     assert "epoch 1/2: normalised MSE" in out
@@ -171,6 +173,7 @@ def test_training_progress_false_is_silent(det_model, images_dir, capsys):
         batch=3,
         imgsz=160,
         progress=False,
+        task_weight=0.0,
     )
     assert capsys.readouterr().out == ""
 
@@ -178,3 +181,55 @@ def test_training_progress_false_is_silent(det_model, images_dir, capsys):
 def test_training_rejects_empty_dir(det_model, tmp_path):
     with pytest.raises(FileNotFoundError):
         train_bottleneck(det_model, tmp_path, epochs=1, imgsz=160)
+
+
+def test_task_loss_steers_the_codec_elsewhere(det_model, images_dir):
+    """The task objective must reach the codec, not just ride along.
+
+    Same seed, same data, same budget — only the objective differs. If the
+    gradient through the frozen tail did not arrive, the two runs would land on
+    identical weights.
+    """
+    kwargs = dict(
+        latent_channels=4, stride=1, epochs=2, batch=3, lr=1e-3, imgsz=160, progress=False
+    )
+    features_only, _ = train_bottleneck(det_model, images_dir, task_weight=0.0, **kwargs)
+    task_aware, _ = train_bottleneck(det_model, images_dir, task_weight=1.0, **kwargs)
+
+    a = features_only.state_dict()
+    b = task_aware.state_dict()
+    assert not any(torch.allclose(a[k], b[k]) for k in a)
+
+
+def test_cloud_grad_reaches_the_wire_tensors(det_model, probe):
+    """Without this the task loss is unexpressible: no graph, no gradient."""
+    runner = SplitRunner(det_model)
+    wire = {i: t.clone().requires_grad_(True) for i, t in runner.edge(probe).items()}
+
+    assert _tensors(runner.cloud(wire))[0].grad_fn is None  # default stays no_grad
+    out = _tensors(runner.cloud(wire, grad=True))[0]
+    out.sum().backward()
+    assert all(t.grad is not None for t in wire.values())
+
+
+def test_tensors_walks_whatever_the_head_returns():
+    a, b, c = torch.zeros(1), torch.ones(2), torch.full((3,), 2.0)
+    assert _tensors(a) == [a]
+    assert _tensors((a, [b, (c,)])) == [a, b, c]  # nested containers, in order
+    assert _tensors({"pred": a, "aux": [b]}) == [a, b]
+    assert _tensors(("not a tensor", 7, None)) == []
+
+
+def test_output_error_ranks_codecs_by_what_the_model_sees(det_model, images_dir):
+    runner = SplitRunner(det_model)
+    paths = sorted(images_dir.iterdir())
+    torch.manual_seed(15)
+    channels = {i: t.shape[1] for i, t in runner.edge(torch.rand(1, 3, 160, 160)).items()}
+    untrained = Bottleneck(channels, latent_channels=4, stride=1)
+    trained, _ = train_bottleneck(
+        det_model, images_dir, latent_channels=4, stride=1, epochs=3, batch=3,
+        imgsz=160, progress=False,
+    )
+    before = output_error(runner, untrained, paths, imgsz=160, batch=3)
+    after = output_error(runner, trained, paths, imgsz=160, batch=3)
+    assert 0 < after < before

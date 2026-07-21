@@ -1,9 +1,18 @@
-"""Offline training of the bottleneck: feature distillation with a frozen detector.
+"""Offline training of the bottleneck: distillation with a frozen detector.
 
 The detector never changes: for every image the edge half produces the wire
-tensors, and the bottleneck is trained to reconstruct them through its latent
-(with simulated INT8 noise). The loss is per-level MSE normalised by the
-target's mean energy, so P3/P4/P5 contribute equally regardless of scale.
+tensors, and the bottleneck is trained to carry them through its latent (with
+simulated INT8 noise). Two objectives are mixed by ``task_weight``:
+
+* **feature** — per-level MSE normalised by the target's mean energy, so every
+  wire level contributes equally regardless of scale;
+* **task** — the same normalised MSE on the *head output*, with the gradient
+  taken back through the frozen tail.
+
+Feature error alone treats every activation as equally worth keeping, and it
+plateaus: at the default configuration a codec trained on it stalls near 0.6
+relative error however long it runs, because most of the capacity goes to
+activations no prediction depends on. The task term prices them correctly.
 """
 
 from __future__ import annotations
@@ -11,6 +20,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
+from statistics import mean
 
 import cv2
 import torch
@@ -73,15 +83,82 @@ def _load_batch(paths: list[Path], imgsz: int, device: torch.device) -> torch.Te
     return torch.cat(tensors).to(device)
 
 
+def _normalised_mse(recon: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    # Normalise by the target's mean energy (not variance: near-constant tensors
+    # would explode the scale and destabilise the first optimiser steps).
+    return F.mse_loss(recon, target) / (target.pow(2).mean() + 1e-6)
+
+
 def _distillation_loss(
     recon: dict[int, torch.Tensor], target: dict[int, torch.Tensor]
 ) -> torch.Tensor:
-    # Normalise by the target's mean energy (not variance: near-constant levels
-    # would explode the scale and destabilise the first optimiser steps).
-    losses = [
-        F.mse_loss(recon[i], target[i]) / (target[i].pow(2).mean() + 1e-6) for i in sorted(target)
-    ]
+    losses = [_normalised_mse(recon[i], target[i]) for i in sorted(target)]
     return torch.stack(losses).mean()
+
+
+def _tensors(out: object) -> list[torch.Tensor]:
+    """Every tensor in a model output, whatever container it arrives in.
+
+    Heads return different shapes — a tensor, a tuple of decoded predictions
+    plus raw maps, a list per level. Walking the structure keeps the task loss
+    architecture-agnostic, which is the whole point of the adapter layer.
+    """
+    if isinstance(out, torch.Tensor):
+        return [out]
+    if isinstance(out, dict):
+        out = list(out.values())
+    if isinstance(out, (list, tuple)):
+        return [t for item in out for t in _tensors(item)]
+    return []
+
+
+def _task_loss(
+    runner: SplitRunner, recon: dict[int, torch.Tensor], target_out: list[torch.Tensor]
+) -> torch.Tensor:
+    """How far the *head output* moves when the tail runs on reconstructions.
+
+    Reconstruction error treats every activation as equally worth keeping. The
+    detector does not: much of the feature energy never reaches a prediction.
+    Backpropagating through the frozen tail lets the codec spend its bits where
+    the output actually moves.
+    """
+    through = _tensors(runner.cloud(recon, grad=True))
+    if len(through) != len(target_out):  # pragma: no cover - defensive
+        raise RuntimeError("cloud half returned a different output structure for the same input")
+    losses = [_normalised_mse(a, b) for a, b in zip(through, target_out, strict=True)]
+    return torch.stack(losses).mean()
+
+
+@torch.no_grad()
+def output_error(
+    runner: SplitRunner,
+    bottleneck: Bottleneck,
+    paths: list[Path],
+    imgsz: int = 640,
+    batch: int = 4,
+    device: str = "cpu",
+) -> float:
+    """Relative error the codec induces on the model's output, averaged.
+
+    The honest quality axis for a codec, and cheap: one extra pass through the
+    cloud half per batch, against mAP's full validation run. Reconstruction
+    error measures something else — a codec can improve here while getting
+    worse there, and does.
+    """
+    dev = torch.device(normalize_device(device))
+    errors = []
+    for start in range(0, len(paths), batch):
+        x = _load_batch(paths[start : start + batch], imgsz, dev)
+        wire = runner.edge(x)
+        baseline = _tensors(runner.cloud(wire))
+        through = _tensors(runner.cloud(bottleneck(wire)))
+        errors.append(
+            mean(
+                ((a - b).norm() / (b.norm() + 1e-8)).item()
+                for a, b in zip(through, baseline, strict=True)
+            )
+        )
+    return mean(errors)
 
 
 def train_bottleneck(
@@ -99,6 +176,7 @@ def train_bottleneck(
     seed: int = 15,
     quant_noise: bool = True,
     progress: bool = True,
+    task_weight: float = 0.5,
 ) -> tuple[Bottleneck, TrainResult]:
     """Train a bottleneck for ``det_model`` on the images in ``images_dir``.
 
@@ -106,6 +184,16 @@ def train_bottleneck(
     detector is frozen and left in eval mode; only bottleneck weights change.
     ``progress`` shows a per-epoch tqdm bar with the running loss (set it False
     for quiet runs, e.g. the sweep or tests).
+
+    ``task_weight`` mixes the two objectives::
+
+        loss = (1 - task_weight) * feature_mse + task_weight * head_output_mse
+
+    At 0 this is pure feature distillation (every activation equally worth
+    keeping). Above 0 the gradient also comes back through the frozen tail, so
+    the codec learns which activations the predictions actually depend on —
+    which is what the accuracy number is measured on. Costs one extra forward
+    and backward through the cloud half per step.
     """
     dev = torch.device(normalize_device(device))
     det_model = det_model.to(dev).float().eval()
@@ -139,6 +227,10 @@ def train_bottleneck(
             wire = runner.edge(x)  # no_grad inside: targets are detached
             recon = bottleneck(wire, quant_noise=quant_noise)
             loss = _distillation_loss(recon, wire)
+            if task_weight > 0:
+                target_out = [t.detach() for t in _tensors(runner.cloud(wire))]
+                task = _task_loss(runner, recon, target_out)
+                loss = (1 - task_weight) * loss + task_weight * task
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
