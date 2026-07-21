@@ -27,9 +27,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .bottleneck import Bottleneck
+from .bottleneck import Bottleneck, BottleneckTransport, Latents
 from .measure import IMAGE_SUFFIXES, to_input_tensor
-from .split import SplitRunner
+from .split import SplitRunner, Transport, primary_output
 
 try:  # tqdm ships with ultralytics; degrade gracefully if it is ever absent.
     from tqdm.auto import tqdm
@@ -58,10 +58,21 @@ def normalize_device(device: str) -> str:
 
 @dataclass
 class TrainResult:
-    """Per-epoch mean loss and final per-level relative reconstruction error."""
+    """What a training run is worth.
+
+    ``output_error`` is the headline: the relative error the codec induces on
+    the model's output, over the deployed encode → INT8 → decode path, on
+    frames held out of training. ``relative_errors`` (per-level feature
+    reconstruction, measured on training frames) is kept because it is what
+    the loss minimises, but it is a diagnostic, not a verdict — it can improve
+    while accuracy gets worse.
+    """
 
     epoch_losses: list[float] = field(default_factory=list)
     relative_errors: dict[int, float] = field(default_factory=dict)
+    output_error: float | None = None
+    train_images: int = 0
+    val_images: int = 0
 
 
 def _image_paths(images_dir: str | Path, limit: int | None) -> list[Path]:
@@ -137,6 +148,7 @@ def output_error(
     imgsz: int = 640,
     batch: int = 4,
     device: str = "cpu",
+    transport: Transport | None = None,
 ) -> float:
     """Relative error the codec induces on the model's output, averaged.
 
@@ -144,14 +156,20 @@ def output_error(
     cloud half per batch, against mAP's full validation run. Reconstruction
     error measures something else — a codec can improve here while getting
     worse there, and does.
+
+    Measured on :func:`~axonmesh.split.primary_output`, i.e. the same tensor
+    the server's postprocess consumes. ``transport`` prices the codec as it is
+    actually deployed (encode → INT8 → decode); leaving it out measures the
+    autoencoder alone, which is a different and more flattering question.
     """
     dev = torch.device(normalize_device(device))
     errors = []
     for start in range(0, len(paths), batch):
         x = _load_batch(paths[start : start + batch], imgsz, dev)
         wire = runner.edge(x)
-        baseline = _tensors(runner.cloud(wire))
-        through = _tensors(runner.cloud(bottleneck(wire)))
+        received = bottleneck(wire) if transport is None else transport(wire)[0]
+        baseline = _tensors(primary_output(runner.cloud(wire)))
+        through = _tensors(primary_output(runner.cloud(received)))
         errors.append(
             mean(
                 ((a - b).norm() / (b.norm() + 1e-8)).item()
@@ -165,7 +183,7 @@ def train_bottleneck(
     det_model: nn.Module,
     images_dir: str | Path,
     cut: int | None = None,
-    latent_channels: int = 8,
+    latent_channels: Latents = 8,
     stride: int = 2,
     epochs: int = 5,
     batch: int = 4,
@@ -177,6 +195,7 @@ def train_bottleneck(
     quant_noise: bool = True,
     progress: bool = True,
     task_weight: float = 0.5,
+    val_fraction: float = 0.1,
 ) -> tuple[Bottleneck, TrainResult]:
     """Train a bottleneck for ``det_model`` on the images in ``images_dir``.
 
@@ -206,10 +225,16 @@ def train_bottleneck(
     ).to(dev)
     optimizer = torch.optim.Adam(bottleneck.parameters(), lr=lr, weight_decay=0.0)
 
-    paths = _image_paths(images_dir, limit)
+    every_path = _image_paths(images_dir, limit)
     rng = random.Random(seed)
     torch.manual_seed(seed)
-    result = TrainResult()
+    # Hold frames out before the first step. Reporting a codec's quality on
+    # frames it trained on is how a codec that has memorised 96 images looks
+    # finished; the split is deterministic in `seed` so a rerun is comparable.
+    rng.shuffle(every_path)
+    n_val = min(int(len(every_path) * val_fraction), 256)
+    val_paths, paths = every_path[:n_val], every_path[n_val:]
+    result = TrainResult(train_images=len(paths), val_images=len(val_paths))
 
     show = progress and tqdm is not None
     bottleneck.train()
@@ -250,4 +275,19 @@ def train_bottleneck(
         result.relative_errors = {
             i: (recon[i] - wire[i]).norm().item() / (wire[i].norm().item() + 1e-8) for i in wire
         }
+    if val_paths:
+        result.output_error = output_error(
+            runner,
+            bottleneck,
+            val_paths,
+            imgsz=imgsz,
+            batch=batch,
+            device=device,
+            transport=BottleneckTransport(bottleneck, compress=True),
+        )
+        if progress:
+            print(
+                f"held-out output error {result.output_error:.4f} "
+                f"({len(val_paths)} frames the codec never trained on)"
+            )
     return bottleneck, result

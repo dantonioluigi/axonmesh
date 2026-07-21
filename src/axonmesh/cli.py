@@ -36,6 +36,18 @@ def _load_yolo(model: str):
 _CUT_HELP = "cut layer (default: backbone)"
 
 
+def _latents(value: str) -> int | dict[int, int]:
+    """``"8"`` or ``"4:4,6:16,10:32"`` — uniform width, or one width per level."""
+    if ":" not in value:
+        return int(value)
+    try:
+        return {int(k): int(v) for k, v in (pair.split(":", 1) for pair in value.split(","))}
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(
+            f"expected a number or level:width pairs like 4:8,6:16,10:32, got {value!r}"
+        ) from err
+
+
 def _kb(nbytes: float) -> str:
     return f"{nbytes / 1024:.1f}"
 
@@ -145,11 +157,88 @@ def _cmd_train_bottleneck(args: argparse.Namespace) -> int:
         device=args.device,
         quant_noise=not args.no_quant_noise,
         task_weight=args.task_weight,
+        val_fraction=args.val_fraction,
     )  # train_bottleneck prints per-epoch progress itself
     for i, err in sorted(result.relative_errors.items()):
-        print(f"layer {i}: relative reconstruction error {err:.3f}")
+        print(f"layer {i}: relative reconstruction error {err:.3f} (diagnostic only)")
     save_bottleneck(bottleneck, args.out)
     print(f"bottleneck saved to {args.out}")
+    _report_verdict(result)
+    return 0
+
+
+def _report_verdict(result) -> None:
+    """Say what the run is worth, in the terms the deployment will be judged on.
+
+    Reconstruction error is what the loss minimises, not what accuracy tracks,
+    so printing it alone invites the reader to conclude a codec is finished
+    when it is not. Held-out output error is the number that moves with mAP.
+    """
+    if result.output_error is None:
+        print(
+            "no held-out frames: quality unmeasured (--val-fraction 0 was set, or too few images)"
+        )
+        return
+    err = result.output_error
+    print(f"\nheld-out output error: {err:.3f}  <- the number that tracks mAP")
+    if err > 0.05:
+        print(
+            "  This codec measurably changes what the model predicts. Measure the\n"
+            "  real cost before deploying it: axonmesh evaluate --bottleneck <ckpt> --data <yaml>"
+        )
+    if result.train_images < 1000:
+        print(
+            f"  Trained on {result.train_images} images. A codec has to generalise over the\n"
+            f"  feature distribution, not a handful of frames: at this scale more epochs\n"
+            f"  stop helping long before the error is low (see docs/validation.md)."
+        )
+
+
+def _cmd_allocate(args: argparse.Namespace) -> int:
+    import torch
+
+    from .allocate import allocation_cost, level_sensitivity, propose_allocation
+    from .split import SplitRunner
+    from .train import _image_paths, _load_batch
+
+    runner = SplitRunner(_load_model(args.model), cut=args.cut)
+    frames = _load_batch(
+        _image_paths(args.images, args.limit), args.imgsz, torch.device(args.device)
+    )
+    sensitivity = level_sensitivity(runner, frames, bits=args.bits)
+
+    print(f"cut={runner.cut} wire={list(runner.wire)} frames={frames.shape[0]} bits={args.bits}\n")
+    print(f"{'level':>6} {'h*w':>8} {'output err':>11} {'err per unit cost':>19}")
+    for s in sensitivity:
+        print(f"{s.index:>6} {s.spatial:>8} {s.output_error:>11.4f} {s.value_per_channel:>19.2e}")
+
+    proposal = propose_allocation(sensitivity, args.budget)
+    uniform = dict.fromkeys(proposal, args.budget)
+    spec = ",".join(f"{i}:{w}" for i, w in sorted(proposal.items()))
+    print(
+        f"\nuniform  --latent-channels {args.budget}"
+        f"  ({allocation_cost(uniform, sensitivity)} latent elements/frame)"
+    )
+    print(
+        f"proposed --latent-channels {spec}"
+        f"  ({allocation_cost(proposal, sensitivity)} latent elements/frame)"
+    )
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(
+                {
+                    "cut": runner.cut,
+                    "bits": args.bits,
+                    "sensitivity": [
+                        {"level": s.index, "spatial": s.spatial, "output_error": s.output_error}
+                        for s in sensitivity
+                    ],
+                    "proposal": proposal,
+                    "latent_channels_arg": spec,
+                },
+                indent=2,
+            )
+        )
     return 0
 
 
@@ -498,7 +587,14 @@ def build_parser() -> argparse.ArgumentParser:
     common(p_train)
     p_train.add_argument("--images", required=True, help="directory of training images")
     p_train.add_argument("--cut", type=int, default=None, help=_CUT_HELP)
-    p_train.add_argument("--latent-channels", type=int, default=8, help="latent channels/level")
+    p_train.add_argument(
+        "--latent-channels",
+        type=_latents,
+        default=8,
+        help="latent channels: one number for every wire level, or a per-level "
+        "allocation like 4:4,6:16,10:32 — the deepest levels are spatially tiny, "
+        "so widening them costs almost nothing and is where the accuracy is",
+    )
     p_train.add_argument("--stride", type=int, default=2, help="latent spatial downsampling")
     p_train.add_argument("--epochs", type=int, default=5)
     p_train.add_argument("--batch", type=int, default=4)
@@ -515,8 +611,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="fraction of the loss taken from the head output rather than the "
         "reconstructed features; 0 = pure feature distillation (faster)",
     )
+    p_train.add_argument(
+        "--val-fraction",
+        type=float,
+        default=0.1,
+        help="fraction of the images held out of training to score the result on "
+        "(0 disables, and leaves the run with no honest quality number)",
+    )
     p_train.add_argument("--out", default="bottleneck.pt", help="checkpoint output path")
     p_train.set_defaults(func=_cmd_train_bottleneck)
+
+    p_alloc = sub.add_parser("allocate", help="measure which wire level deserves the latent budget")
+    common(p_alloc)
+    p_alloc.add_argument("--images", required=True, help="directory of representative frames")
+    p_alloc.add_argument("--cut", type=int, default=None, help=_CUT_HELP)
+    p_alloc.add_argument("--limit", type=int, default=8, help="frames to probe with")
+    p_alloc.add_argument("--budget", type=int, default=8, help="uniform width to redistribute")
+    p_alloc.add_argument(
+        "--bits", type=int, default=3, help="how hard each level is squeezed while probing"
+    )
+    p_alloc.add_argument("--device", default="cpu", help="cpu, cuda, ...")
+    p_alloc.add_argument("--json", default=None, help="write the proposal here")
+    p_alloc.set_defaults(func=_cmd_allocate)
 
     p_stream = sub.add_parser("stream", help="simulate the adaptive edge->cloud stream")
     common(p_stream)

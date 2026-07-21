@@ -28,7 +28,7 @@ from statistics import mean
 import cv2
 import torch.nn as nn
 
-from .bottleneck import Bottleneck
+from .bottleneck import Bottleneck, BottleneckTransport
 from .measure import jpeg_nbytes, letterbox, to_input_tensor
 from .quantize import quantize
 from .split import SplitRunner
@@ -141,7 +141,16 @@ def run_sweep(
             continue
         runner = SplitRunner(det_model, cut=cut)
         int8, int8_zlib, jpeg = _price_bottleneck(bottleneck, runner, sample_paths, imgsz, quality)
-        induced = output_error(runner, bottleneck, sample_paths, imgsz, device=device)
+        # Price the codec on the deployed path, not the autoencoder alone: the
+        # bytes axis charges for INT8, so the quality axis must pay for it too.
+        induced = output_error(
+            runner,
+            bottleneck,
+            sample_paths,
+            imgsz,
+            device=device,
+            transport=BottleneckTransport(bottleneck, compress=True),
+        )
         results.append(
             SweepResult(
                 config=SweepConfig(latent_channels, stride),

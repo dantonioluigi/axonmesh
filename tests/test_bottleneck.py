@@ -8,6 +8,7 @@ from axonmesh.bottleneck import (
     BottleneckTransport,
     LevelCodec,
     load_bottleneck,
+    resolve_latents,
     save_bottleneck,
 )
 from axonmesh.split import SplitRunner, raw_nbytes
@@ -239,3 +240,72 @@ def test_output_error_ranks_codecs_by_what_the_model_sees(det_model, images_dir)
     before = output_error(runner, untrained, paths, imgsz=160, batch=3)
     after = output_error(runner, trained, paths, imgsz=160, batch=3)
     assert 0 < after < before
+
+
+def test_quality_is_scored_on_frames_held_out_of_training(det_model, images_dir):
+    """The reported number must not come from frames the codec fitted.
+
+    A codec that memorised its training set scores perfectly on it, which is
+    exactly the reading that makes an unfinished codec look finished.
+    """
+    _, result = train_bottleneck(
+        det_model,
+        images_dir,
+        latent_channels=4,
+        stride=1,
+        epochs=1,
+        batch=2,
+        imgsz=160,
+        progress=False,
+        task_weight=0.0,
+        val_fraction=0.34,  # 3 frames in the fixture -> 1 held out
+    )
+    assert result.val_images == 1
+    assert result.train_images == 2
+    assert result.output_error is not None and result.output_error > 0
+
+
+def test_no_held_out_frames_means_no_quality_claim(det_model, images_dir):
+    _, result = train_bottleneck(
+        det_model,
+        images_dir,
+        latent_channels=4,
+        stride=1,
+        epochs=1,
+        batch=2,
+        imgsz=160,
+        progress=False,
+        task_weight=0.0,
+        val_fraction=0.0,
+    )
+    assert result.val_images == 0
+    assert result.output_error is None  # silence beats a number measured on training data
+
+
+def test_uniform_latents_expand_to_every_level():
+    assert resolve_latents({4: 64, 6: 128, 10: 256}, 8) == {4: 8, 6: 8, 10: 8}
+
+
+def test_per_level_latents_are_taken_as_given():
+    given = {4: 4, 6: 16, 10: 48}
+    assert resolve_latents({4: 64, 6: 128, 10: 256}, given) == given
+
+
+def test_a_level_left_out_of_the_allocation_is_an_error():
+    """Silently defaulting the missing level would ship a codec nobody sized."""
+    with pytest.raises(ValueError, match=r"\[10\]"):
+        resolve_latents({4: 64, 6: 128, 10: 256}, {4: 4, 6: 16})
+
+
+def test_per_level_allocation_survives_a_save_load_round_trip(tmp_path):
+    torch.manual_seed(15)
+    original = Bottleneck({4: 16, 6: 32}, latent_channels={4: 2, 6: 8}, stride=1)
+    path = tmp_path / "alloc.pt"
+    save_bottleneck(original, path)
+    restored = load_bottleneck(path)
+
+    assert restored.config["latent_channels"] == {4: 2, 6: 8}
+    wire = {4: torch.randn(1, 16, 8, 8), 6: torch.randn(1, 32, 4, 4)}
+    latents = restored.encode(wire)
+    assert latents[4].shape[1] == 2
+    assert latents[6].shape[1] == 8

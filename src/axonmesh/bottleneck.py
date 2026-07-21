@@ -59,23 +59,54 @@ class LevelCodec(nn.Module):
         return self.decoder(z)
 
 
+Latents = int | dict[int, int]
+
+
+def resolve_latents(channels: dict[int, int], latent_channels: Latents) -> dict[int, int]:
+    """Per-level latent widths, from either one number or an explicit mapping.
+
+    One number for every level spends the budget where the pixels are, which is
+    not where the accuracy is. Measured on YOLO11n at the backbone cut, the
+    shallowest wire level takes 72% of the bytes and accounts for 22% of the
+    error the codec induces, while the deepest takes 6% and accounts for 47%:
+    the levels that matter most are the cheapest to widen, because they are
+    spatially tiny. Pass a mapping to spend accordingly.
+    """
+    if isinstance(latent_channels, dict):
+        missing = set(channels) - set(latent_channels)
+        if missing:
+            raise ValueError(
+                f"no latent width given for wire level(s) {sorted(missing)}; "
+                f"the wire set is {sorted(channels)}"
+            )
+        return {i: int(latent_channels[i]) for i in channels}
+    return dict.fromkeys(channels, int(latent_channels))
+
+
 class Bottleneck(nn.Module):
     """One :class:`LevelCodec` per wire tensor, keyed by layer index."""
 
-    def __init__(self, channels: dict[int, int], latent_channels: int = 8, stride: int = 2) -> None:
+    def __init__(
+        self, channels: dict[int, int], latent_channels: Latents = 8, stride: int = 2
+    ) -> None:
         super().__init__()
+        latents = resolve_latents(channels, latent_channels)
         self.codecs = nn.ModuleDict(
-            {str(i): LevelCodec(c, latent_channels, stride) for i, c in channels.items()}
+            {str(i): LevelCodec(c, latents[i], stride) for i, c in channels.items()}
         )
         self.config: dict[str, Any] = {
             "channels": dict(channels),
-            "latent_channels": latent_channels,
+            "latent_channels": latents,
             "stride": stride,
         }
 
     @classmethod
     def for_runner(
-        cls, runner: SplitRunner, latent_channels: int = 8, stride: int = 2, imgsz: int = 640
+        cls,
+        runner: SplitRunner,
+        latent_channels: Latents = 8,
+        stride: int = 2,
+        imgsz: int = 640,
     ) -> Bottleneck:
         """Build codecs matching the channel counts of the runner's wire set."""
         shapes = probe_output_shapes(runner.det_model, imgsz=imgsz)

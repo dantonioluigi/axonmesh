@@ -40,7 +40,7 @@ from .protocol import (
     send_message,
     unpack_tensors,
 )
-from .split import SplitRunner
+from .split import SplitRunner, primary_output
 
 Postprocess = Callable[[Any], bytes]
 
@@ -114,7 +114,7 @@ def make_yolo_postprocess(imgsz: int, conf: float = 0.25, iou: float = 0.45) -> 
     def postprocess(raw: Any) -> bytes:
         non_max_suppression = _import_nms()
 
-        pred = raw[0] if isinstance(raw, tuple) else raw
+        pred = primary_output(raw)
         boxes = non_max_suppression(pred, conf_thres=conf, iou_thres=iou)[0]
         detections = [
             Detection(

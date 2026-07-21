@@ -8,7 +8,9 @@ loss is now the error on the model's own output, with the gradient taken back
 through the frozen tail — `SplitRunner.cloud(grad=True)` exists to make that
 expressible; inference keeps the `no_grad` path. On yolo11n / coco128 at 320,
 150 epochs, at an identical 3.8 KB on the wire: **mAP50-95 0.170 → 0.236**
-(`docs/validation.md`).
+(`docs/validation.md`). Both sides of that pair trained on frames inside the
+evaluation set, so the two absolute numbers are flattered and only their
+difference is load-bearing; the uncontaminated figures are further down.
 
 - **Reconstruction error is no longer the quality axis.** The task-aware codec
   reconstructs *worse* while scoring better on everything measured downstream:
@@ -27,8 +29,22 @@ expressible; inference keeps the `no_grad` path. On yolo11n / coco128 at 320,
 Measured and worth knowing before spending GPU hours: widening the latent does
 not buy accuracy back. Four times the wire (8 → 32 channels) moves held-out
 output error 0.101 → 0.097 while the training loss falls 0.291 → 0.247 — a
-generalisation gap, not a rate constraint. The remaining accuracy cost is a
-data problem, so the next run is full COCO, not a wider codec.
+generalisation gap, not a rate constraint.
+
+That reading pointed at training data, and training data turned out to be worth
+about a tenth: 50x more images at matched compute moves held-out output error
+0.0959 → 0.0866. Redistributing the same bytes across wire levels
+(`axonmesh allocate`) is worth another 4%. Both real, neither the size of the
+problem.
+
+The size of the problem, measured with no train/eval overlap: a JPEG frame
+costs 11.3 KB and gets the *full* 0.385 mAP50-95, because the cloud then runs
+the unsplit model. The codec gets 0.154 at 3.8 KB and 0.195 at 14.1 KB -- at a
+JPEG-comparable rate it ships more bytes and returns half the accuracy, and
+3.7x the wire is worth 0.041 mAP. `inspect` shows the structural reason: across
+all 23 cuts of YOLO11n the smallest wire set is 100 KB as INT8. No cut of this
+network is smaller than the coded image it came from. Split inference at these
+cuts does not win on bandwidth; docs/validation.md says what it does win.
 
 Not shipped, recorded so it is not re-tried blindly: a deeper codec (GroupNorm,
 residual blocks, PixelShuffle decoder) came out slightly *behind* the plain

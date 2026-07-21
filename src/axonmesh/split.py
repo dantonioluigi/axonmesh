@@ -58,6 +58,19 @@ def raw_nbytes(wire: dict[int, torch.Tensor]) -> int:
     return sum(t.numel() * t.element_size() for t in wire.values())
 
 
+def primary_output(raw: Any) -> Any:
+    """The part of a model's output a consumer actually reads.
+
+    ultralytics detection models return ``(decoded, raw_maps)`` in eval mode,
+    and the first element is a deterministic function of the second. The
+    server's postprocess reads element 0, so anything measuring how much a
+    codec changed the model's behaviour has to read the same thing — otherwise
+    it scores tensors no consumer looks at and, for this head, counts the same
+    information twice.
+    """
+    return raw[0] if isinstance(raw, tuple) else raw
+
+
 class SplitRunner:
     """Split a DetectionModel at ``cut`` and run the two halves.
 
