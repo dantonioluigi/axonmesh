@@ -6,7 +6,7 @@ import struct
 import pytest
 import torch
 
-from splitflow.protocol import (
+from axonmesh.protocol import (
     MAGIC,
     Handshake,
     Kind,
@@ -50,7 +50,7 @@ def test_wrong_version_is_rejected(pair):
 
 
 def test_peer_close_raises_connection_closed(pair):
-    from splitflow.protocol import ConnectionClosed
+    from axonmesh.protocol import ConnectionClosed
 
     a, b = pair
     a.close()

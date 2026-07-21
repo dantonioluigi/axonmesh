@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from splitflow.planner import enumerate_cuts
-from splitflow.replanning import (
+from axonmesh.planner import enumerate_cuts
+from axonmesh.replanning import (
     BandwidthEstimator,
     ReplanningController,
     simulate_trace,
@@ -110,7 +110,7 @@ def test_simulate_trace_end_to_end(options):
 
 
 def test_replan_cli(capsys, tmp_path):
-    from splitflow.cli import main
+    from axonmesh.cli import main
 
     trace = tmp_path / "trace.json"
     trace.write_text(json.dumps([[5, 0.1], [5000, 0.2], [5000, 0.2], [5000, 0.2], [1, 0.9]]))

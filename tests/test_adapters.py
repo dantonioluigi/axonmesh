@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from splitflow.adapters import (
+from axonmesh.adapters import (
     ModelAdapter,
     UltralyticsAdapter,
     UnsupportedModelError,
@@ -12,8 +12,8 @@ from splitflow.adapters import (
     register_adapter,
     registered_adapters,
 )
-from splitflow.split import SplitRunner
-from splitflow.topology import LayerInfo
+from axonmesh.split import SplitRunner
+from axonmesh.topology import LayerInfo
 
 
 def test_ultralytics_is_registered():
@@ -97,13 +97,13 @@ def test_registering_a_custom_backend(det_model):
         names = registered_adapters()
         assert names.index("marker") < names.index("torch.fx")
     finally:
-        from splitflow.adapters import base
+        from axonmesh.adapters import base
 
         base._REGISTRY[:] = [e for e in base._REGISTRY if e[0] != "marker"]
 
 
 def test_fallbacks_always_sort_last():
-    from splitflow.adapters import base
+    from axonmesh.adapters import base
 
     register_adapter("late-specific", lambda m: False, lambda m: m)
     try:
@@ -123,6 +123,6 @@ def test_a_failing_detector_does_not_break_resolution(det_model):
         # Resolution must skip the broken probe and still find ultralytics.
         assert isinstance(adapter_for(det_model), UltralyticsAdapter)
     finally:
-        from splitflow.adapters import base
+        from axonmesh.adapters import base
 
         base._REGISTRY[:] = [e for e in base._REGISTRY if e[0] != "explodes"]

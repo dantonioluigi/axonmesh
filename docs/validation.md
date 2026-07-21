@@ -2,7 +2,7 @@
 
 A reproducible end-to-end check of the accuracy path on **public** weights and
 data (no private model or dataset), so anyone can run it. It exercises
-`splitflow evaluate --bottleneck` — baseline vs split+bottleneck mAP on the same
+`axonmesh evaluate --bottleneck` — baseline vs split+bottleneck mAP on the same
 validation set — and produces a first real data point.
 
 ## Setup
@@ -13,12 +13,12 @@ validation set — and produces a first real data point.
 - Bottleneck: 8 latent channels, stride 2, trained 8 epochs, batch 8.
 
 ```bash
-splitflow train-bottleneck --model yolo11n.pt \
+axonmesh train-bottleneck --model yolo11n.pt \
     --images datasets/coco128/images/train2017 \
     --imgsz 640 --latent-channels 8 --stride 2 --epochs 8 --batch 8 --out bn.pt
 # stride-2 bottleneck needs square inputs, so evaluate with rect=False:
-python -c "from splitflow.evaluate import compare_map; \
-from splitflow.bottleneck import load_bottleneck, BottleneckTransport; \
+python -c "from axonmesh.evaluate import compare_map; \
+from axonmesh.bottleneck import load_bottleneck, BottleneckTransport; \
 print(compare_map('yolo11n.pt','coco128.yaml', \
 transport=BottleneckTransport(load_bottleneck('bn.pt'), compress=True), \
 imgsz=640, device='cpu', rect=False).to_dict())"

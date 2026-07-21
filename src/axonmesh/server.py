@@ -47,7 +47,7 @@ Postprocess = Callable[[Any], bytes]
 class Metrics:
     """Thread-safe counters rendered in Prometheus text format."""
 
-    def __init__(self, prefix: str = "splitflow") -> None:
+    def __init__(self, prefix: str = "axonmesh") -> None:
         self.prefix = prefix
         self._lock = threading.Lock()
         self._counters: dict[tuple[str, tuple[tuple[str, str], ...]], float] = {}

@@ -46,7 +46,7 @@ kubectl config use-context "kind-$CLUSTER" >/dev/null
 echo "== install CRD + RBAC =="
 kubectl apply -f "$REPO/operator/manifests/crd.yaml"
 kubectl apply -f "$REPO/operator/manifests/rbac.yaml"
-kubectl wait --for=condition=established crd/splitinferences.split.dev --timeout=30s
+kubectl wait --for=condition=established crd/splitinferences.axonmesh.dev --timeout=30s
 
 echo "== start operator (kopf, local) =="
 ( cd "$REPO" && PYTHONPATH=operator KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}" \
@@ -72,7 +72,7 @@ assert "status cut mode" "$(kubectl get splitinference detector -o jsonpath='{.s
 
 echo "== update: switch to a fixed cut, scale down =="
 kubectl patch splitinference detector --type merge \
-  -p '{"spec":{"cut":{"mode":"fixed","fixed":8},"cloud":{"image":"ghcr.io/dantonioluigi/splitflow-cloud:0.5.0","replicas":1}}}'
+  -p '{"spec":{"cut":{"mode":"fixed","fixed":8},"cloud":{"image":"ghcr.io/dantonioluigi/axonmesh-cloud:0.5.0","replicas":1}}}'
 wait_for "configmap became fixed" bash -c "kubectl get cm detector-edge-config -o jsonpath='{.data.mode}' | grep -q fixed"
 assert "configmap fixed cut" "$(kubectl get cm detector-edge-config -o jsonpath='{.data.cut}')" "8"
 wait_for "deployment scaled" bash -c "kubectl get deploy detector-cloud -o jsonpath='{.spec.replicas}' | grep -qx 1"

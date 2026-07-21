@@ -29,3 +29,6 @@ results/
 
 # operator e2e runtime log
 deploy/kind/operator.log
+
+# local working notes, not a repo artifact
+HANDOFF.md

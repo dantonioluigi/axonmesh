@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from splitflow.sweep import (
+from axonmesh.sweep import (
     SweepConfig,
     SweepResult,
     mark_pareto,
@@ -80,7 +80,7 @@ def test_markdown_and_dicts(results):
 
 
 def test_sweep_cli(capsys, images_dir, tmp_path):
-    from splitflow.cli import main
+    from axonmesh.cli import main
 
     report = tmp_path / "sweep.json"
     code = main(
@@ -114,7 +114,7 @@ def test_sweep_cli(capsys, images_dir, tmp_path):
 
 
 def test_sweep_cli_fails_when_everything_skipped(capsys, images_dir):
-    from splitflow.cli import main
+    from axonmesh.cli import main
 
     code = main(
         [

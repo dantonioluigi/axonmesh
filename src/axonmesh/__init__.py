@@ -1,4 +1,4 @@
-"""splitflow: split computing for vision models, from probe to K8s service."""
+"""axonmesh: split computing for vision models, from probe to K8s service."""
 
 from .adapters import (
     ModelAdapter,
@@ -66,7 +66,7 @@ from .topology import (
 from .train import TrainResult, train_bottleneck
 from .transport import Int8Transport, RawTransport
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 __all__ = [
     "AdaptivePolicy",

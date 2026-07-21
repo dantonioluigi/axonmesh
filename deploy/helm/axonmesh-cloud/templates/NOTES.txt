@@ -1,11 +1,11 @@
 The cloud half is starting.
 
 Wire endpoint (for edge devices):
-  {{ include "splitflow-cloud.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+  {{ include "axonmesh-cloud.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
 
 Point an edge at it:
-  splitflow edge --model model.pt --images /data/frames \
-      --host {{ include "splitflow-cloud.name" . }}.{{ .Release.Namespace }}.svc \
+  axonmesh edge --model model.pt --images /data/frames \
+      --host {{ include "axonmesh-cloud.name" . }}.{{ .Release.Namespace }}.svc \
       --port {{ .Values.service.port }}
 
 Metrics: port {{ .Values.service.metricsPort }}, path /metrics (health: /healthz).

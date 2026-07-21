@@ -1,13 +1,13 @@
 """Run a model as two halves: edge (up to the cut) and cloud (the rest).
 
 The edge half runs layers ``0..cut`` and produces the *wire set*: every cached
-tensor a later layer still needs (see :mod:`splitflow.topology`). An optional
-transport (see :mod:`splitflow.transport`) simulates shipping those tensors —
+tensor a later layer still needs (see :mod:`axonmesh.topology`). An optional
+transport (see :mod:`axonmesh.transport`) simulates shipping those tensors —
 quantising, serialising and counting bytes. The cloud half resumes from the
 received tensors and produces the exact output the unsplit model would.
 
 Which layers exist and how to run them comes from a
-:class:`~splitflow.adapters.ModelAdapter`, so this module is architecture-
+:class:`~axonmesh.adapters.ModelAdapter`, so this module is architecture-
 agnostic; passing a bare model resolves an adapter automatically.
 """
 

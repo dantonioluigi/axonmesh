@@ -3,16 +3,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from splitflow.measure import to_input_tensor
-from splitflow.policy import AdaptivePolicy, ConfidenceEMADrift, Detection, Mode
-from splitflow.split import SplitRunner
-from splitflow.stream import (
+from axonmesh.measure import to_input_tensor
+from axonmesh.policy import AdaptivePolicy, ConfidenceEMADrift, Detection, Mode
+from axonmesh.split import SplitRunner
+from axonmesh.stream import (
     iter_image_frames,
     simulate_stream,
     summarize_stream,
     transport_feature_bytes,
 )
-from splitflow.transport import Int8Transport
+from axonmesh.transport import Int8Transport
 
 
 def det(conf: float) -> Detection:

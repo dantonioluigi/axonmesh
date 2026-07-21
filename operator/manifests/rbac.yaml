@@ -9,7 +9,7 @@ metadata:
   name: splitinference-operator
 rules:
   # The custom resource and its status.
-  - apiGroups: [split.dev]
+  - apiGroups: [axonmesh.dev]
     resources: [splitinferences, splitinferences/status]
     verbs: [list, watch, get, patch, update]
   # kopf needs to post events and manage its peering/finalizers.

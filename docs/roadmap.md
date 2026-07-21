@@ -20,7 +20,7 @@ its numbers being good.
 
 - Train the bottleneck on GPU on the full training set; measure ΔmAP with
   `evaluate --bottleneck` on the validation split.
-- **Configuration sweep** (`splitflow sweep`): latent channels {4, 8, 16} ×
+- **Configuration sweep** (`axonmesh sweep`): latent channels {4, 8, 16} ×
   stride {1, 2, 4} × {per-tensor, per-channel} × {±zlib} → Pareto curve of
   wire bytes vs mAP. Store results as JSON, render the curve in the README.
 - Try one non-backbone cut (e.g. after the first neck stage) — the planner
@@ -39,16 +39,16 @@ Everything so far runs in one process. Make the wire real.
   header carries a protocol version byte; mismatches fail loudly. The
   fingerprints prevent the silent nightmare: edge and cloud running different
   weights.
-- **`splitflow serve` (cloud)**: receives latents → decodes → runs neck/head →
+- **`axonmesh serve` (cloud)**: receives latents → decodes → runs neck/head →
   returns detections. Also accepts FRAME messages (full inference + enqueue to
   the hard-frame store).
-- **`splitflow edge`**: source (directory/camera/RTSP) → local inference →
+- **`axonmesh edge`**: source (directory/camera/RTSP) → local inference →
   policy → transport → send; falls back to local-only when the link is down
   (degraded mode: detections logged, hard frames buffered on disk).
-- **On-device benchmark** (`splitflow bench`): per-stage timings on the edge —
+- **On-device benchmark** (`axonmesh bench`): per-stage timings on the edge —
   backbone ms, encode ms, serialise ms, send ms — the latency numbers the
   README currently refuses to fake.
-- **ONNX export of the two halves** (`splitflow export`): backbone(+encoder)
+- **ONNX export of the two halves** (`axonmesh export`): backbone(+encoder)
   and (decoder+)neck/head as separate ONNX graphs, so the edge half can run
   under TensorRT on Jetson and the cloud half wherever. Bit-exactness tests
   against the PyTorch halves (tolerance-based, same style as the splitter
@@ -88,7 +88,7 @@ The planner exists (v0.3.0) but takes static inputs. Close the loop.
   plan is better by a margin *and* stable for N seconds — flapping between
   cuts is worse than a mildly suboptimal cut. Cut switches are coordinated:
   edge announces, cloud acks (both halves must agree on the wire).
-- Simulator first: extend `splitflow stream` with a scripted bandwidth trace
+- Simulator first: extend `axonmesh stream` with a scripted bandwidth trace
   (e.g. `--bandwidth-trace trace.json`) so the loop is testable in CI.
 
 **Gate:** on a throttled link (tc/netem), the edge degrades
@@ -98,7 +98,7 @@ detections→features→frames and recovers, without manual intervention.
 
 Now, and only now, the operator — it is orchestration around proven parts.
 
-- **CRD `SplitInference`** (api group e.g. `split.dev/v1alpha1`), spec:
+- **CRD `SplitInference`** (api group e.g. `axonmesh.dev/v1alpha1`), spec:
   - `model`: OCI artifact / URL + fingerprint
   - `bottleneck`: same, optional
   - `cut`: `fixed: N` | `auto: {budgetSource: static|prometheus, query: ...}`

@@ -1,6 +1,6 @@
-# splitflow
+# axonmesh
 
-[![CI](https://github.com/dantonioluigi/splitflow/actions/workflows/ci.yml/badge.svg)](https://github.com/dantonioluigi/splitflow/actions/workflows/ci.yml)
+[![CI](https://github.com/dantonioluigi/axonmesh/actions/workflows/ci.yml/badge.svg)](https://github.com/dantonioluigi/axonmesh/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 
@@ -10,7 +10,7 @@ deployment.** Cut a network in two, run the first half on the edge device, ship
 cloud — with the bandwidth, latency and accuracy costs measured, not assumed.
 
 ```python
-from splitflow import SplitModel, Int8Transport
+from axonmesh import SplitModel, Int8Transport
 
 model = SplitModel(YOLO("yolo11l.pt").model)   # any adapted model
 model.plan(bandwidth_mbps=50, fps=10)          # pick the cut for the link
@@ -37,7 +37,7 @@ flowchart LR
 
 A neck consumes several backbone taps through skip connections — in YOLO11,
 layers 4, 6 and 10 — so a naive sequential slice silently drops tensors the
-cloud half still needs. splitflow resolves the model graph, computes the exact
+cloud half still needs. axonmesh resolves the model graph, computes the exact
 *wire set* for any cut point, and runs the two halves so the split output is
 **bit-identical** to the unsplit model (verified in the test suite).
 
@@ -49,8 +49,8 @@ first adapter; a new model family is a registration, not a fork.
 ## Install
 
 ```bash
-git clone https://github.com/dantonioluigi/splitflow
-cd splitflow
+git clone https://github.com/dantonioluigi/axonmesh
+cd axonmesh
 python -m venv .venv && source .venv/bin/activate
 # CPU-only torch keeps the venv small; skip this line on machines with CUDA/Jetson
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
@@ -63,7 +63,7 @@ pip install -e ".[dev]"
 checkpoint or a bare model YAML):
 
 ```bash
-splitflow inspect --model yolo11l.pt --imgsz 640
+axonmesh inspect --model yolo11l.pt --imgsz 640
 ```
 
 Prints the layer graph (with resolved skip connections) and, for every candidate
@@ -73,7 +73,7 @@ cut, which tensors must cross the wire and their fp32/fp16/int8 sizes.
 wire set produced by the edge half on the *same letterboxed pixels*:
 
 ```bash
-splitflow measure --model yolo11l.pt --images path/to/images/val \
+axonmesh measure --model yolo11l.pt --images path/to/images/val \
     --quality 85 --json results/measure.json
 ```
 
@@ -81,7 +81,7 @@ splitflow measure --model yolo11l.pt --images path/to/images/val \
 unsplit vs split+INT8:
 
 ```bash
-splitflow evaluate --model yolo11l.pt --data data.yaml \
+axonmesh evaluate --model yolo11l.pt --data data.yaml \
     --transport int8 --per-channel --json results/eval.json
 ```
 
@@ -92,9 +92,9 @@ frozen, simulated INT8 noise on the latents); with the defaults
 of JPEG q85:
 
 ```bash
-splitflow train-bottleneck --model yolo11l.pt \
+axonmesh train-bottleneck --model yolo11l.pt \
     --images path/to/images/train --device 0 --out bottleneck.pt
-splitflow evaluate --model yolo11l.pt --data data.yaml \
+axonmesh evaluate --model yolo11l.pt --data data.yaml \
     --bottleneck bottleneck.pt --json results/eval_bottleneck.json
 ```
 
@@ -108,7 +108,7 @@ JPEG on drift or low confidence — which is also enqueued as a hard-frame
 sample for later use:
 
 ```bash
-splitflow stream --model yolo11l.pt --images path/to/images/val \
+axonmesh stream --model yolo11l.pt --images path/to/images/val \
     --bottleneck bottleneck.pt --json results/stream.json
 ```
 
@@ -117,7 +117,7 @@ only mean something together: a cut that halves the bytes is worthless if it
 doubles the edge latency. One command reports them per stage:
 
 ```bash
-splitflow benchmark --model yolo11l.pt --images path/to/frames \
+axonmesh benchmark --model yolo11l.pt --images path/to/frames \
     --transport int8 --compress --device 0 --json results/bench.json
 # add --data data.yaml to also measure the mAP cost (slower)
 ```
@@ -140,7 +140,7 @@ Everything is also available as a library:
 
 ```python
 from ultralytics import YOLO
-from splitflow import SplitRunner, Int8Transport, split_inference
+from axonmesh import SplitRunner, Int8Transport, split_inference
 
 yolo = YOLO("yolo11l.pt")
 runner = SplitRunner(yolo.model, transport=Int8Transport(axis=1))
@@ -160,10 +160,10 @@ instead of silently producing wrong results.
 
 ```bash
 # cloud (a K8s pod, or just another host)
-splitflow serve --model yolo11l.pt --bottleneck bottleneck.pt --port 9095
+axonmesh serve --model yolo11l.pt --bottleneck bottleneck.pt --port 9095
 
 # edge (Jetson, laptop, anything with the same weights)
-splitflow edge --model yolo11l.pt --bottleneck bottleneck.pt \
+axonmesh edge --model yolo11l.pt --bottleneck bottleneck.pt \
     --host <cloud-host> --port 9095 --images path/to/frames
 ```
 
@@ -179,8 +179,8 @@ half. The images are model-agnostic (weights are provided at runtime, not
 baked in), so a single build serves any checkpoint:
 
 ```bash
-helm install detector deploy/helm/splitflow-cloud \
-    --set image.repository=ghcr.io/you/splitflow-cloud \
+helm install detector deploy/helm/axonmesh-cloud \
+    --set image.repository=ghcr.io/you/axonmesh-cloud \
     --set model.url=https://your-store/model.pt \
     --set bottleneck.url=https://your-store/bottleneck.pt
 ```
@@ -197,14 +197,14 @@ controller that manages the cloud Deployment/Service and an edge-facing
 ConfigMap for you:
 
 ```yaml
-apiVersion: split.dev/v1alpha1
+apiVersion: axonmesh.dev/v1alpha1
 kind: SplitInference
 metadata: { name: detector }
 spec:
   model: { url: https://your-store/model.pt }
   bottleneck: { url: https://your-store/bottleneck.pt }
   cut: { mode: auto, auto: { bandwidthMbps: 50, fps: 10 } }
-  cloud: { image: ghcr.io/you/splitflow-cloud:0.5.0, replicas: 2 }
+  cloud: { image: ghcr.io/you/axonmesh-cloud:0.5.0, replicas: 2 }
 ```
 
 `cut.mode: fixed` pins a layer; `auto` writes the budget into the edge
@@ -263,7 +263,7 @@ INT8+zlib ships ~30x more bytes than the JPEG the model would otherwise consume.
 This confirms the known risk rather than killing the idea — it quantifies the
 gap a **learned bottleneck at the cut** has to close (~30x on top of INT8+zlib)
 for feature shipping to beat frame shipping. mAP cost of INT8 (via
-`splitflow evaluate`) is only worth measuring once a bottleneck
+`axonmesh evaluate`) is only worth measuring once a bottleneck
 makes the size competitive.
 
 Latency numbers measured off-device are not representative; re-measure on the

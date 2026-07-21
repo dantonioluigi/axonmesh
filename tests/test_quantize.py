@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from splitflow.quantize import QuantizedTensor, dequantize, quantize
+from axonmesh.quantize import QuantizedTensor, dequantize, quantize
 
 
 @pytest.fixture()

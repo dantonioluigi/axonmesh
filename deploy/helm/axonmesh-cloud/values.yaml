@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/dantonioluigi/splitflow-cloud
+  repository: ghcr.io/dantonioluigi/axonmesh-cloud
   tag: ""            # defaults to the chart appVersion
   pullPolicy: IfNotPresent
 

@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 import torch
 
-from splitflow.evaluate import MapComparison, split_inference
-from splitflow.split import SplitRunner
-from splitflow.transport import Int8Transport
+from axonmesh.evaluate import MapComparison, split_inference
+from axonmesh.split import SplitRunner
+from axonmesh.transport import Int8Transport
 
 
 def test_patch_reroutes_forward_through_split(det_model, probe):
