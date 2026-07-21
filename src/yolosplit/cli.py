@@ -290,6 +290,46 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_benchmark(args: argparse.Namespace) -> int:
+    from .benchmark import benchmark_directory, to_json
+
+    transport = None if args.transport == "none" else _build_transport(args)
+    result = benchmark_directory(
+        _load_model(args.model),
+        args.images,
+        limit=args.limit,
+        cut=args.cut,
+        transport=transport,
+        imgsz=args.imgsz,
+        device=args.device,
+        warmup=args.warmup,
+        quality=args.quality,
+    )
+
+    # Accuracy is optional: it needs a labelled dataset, not just frames.
+    if args.data:
+        from .evaluate import compare_map
+
+        comparison = compare_map(
+            weights=args.model,
+            data=args.data,
+            cut=args.cut,
+            transport=transport,
+            imgsz=args.imgsz,
+            device=args.device,
+            rect=False,
+        )
+        result.map50 = comparison.split_map50
+        result.map50_95 = comparison.split_map50_95
+        result.baseline_map50_95 = comparison.baseline_map50_95
+
+    print(result.to_markdown())
+    if args.json:
+        Path(args.json).write_text(to_json(result))
+        print(f"\nwritten to {args.json}")
+    return 0
+
+
 def _cmd_replan(args: argparse.Namespace) -> int:
     from .planner import enumerate_cuts
     from .replanning import ReplanningController, simulate_trace
@@ -508,6 +548,29 @@ def build_parser() -> argparse.ArgumentParser:
     p_replan.add_argument("--load-ceiling", type=float, default=0.85, help="edge-load fast-offload")
     p_replan.add_argument("--json", default=None, help="write the decision timeline JSON here")
     p_replan.set_defaults(func=_cmd_replan)
+
+    p_bench = sub.add_parser(
+        "benchmark", help="latency/FPS/bandwidth (+power, +accuracy) for one split config"
+    )
+    common(p_bench)
+    p_bench.add_argument("--images", required=True, help="directory of frames to time on")
+    p_bench.add_argument("--cut", type=int, default=None, help=_CUT_HELP)
+    p_bench.add_argument(
+        "--transport",
+        choices=["int8", "fp16", "fp32", "none"],
+        default="int8",
+        help="wire encoding ('none' ships the raw wire set, no codec)",
+    )
+    p_bench.add_argument("--per-channel", action="store_true", help="per-channel quantisation")
+    p_bench.add_argument("--compress", action="store_true", help="zlib on top of INT8")
+    p_bench.add_argument("--bottleneck", default=None, help="trained bottleneck checkpoint")
+    p_bench.add_argument("--data", default=None, help="dataset YAML: also measure mAP (slower)")
+    p_bench.add_argument("--warmup", type=int, default=3, help="unmeasured warmup frames")
+    p_bench.add_argument("--quality", type=int, default=85, help="JPEG baseline quality")
+    p_bench.add_argument("--limit", type=int, default=None, help="max frames to time")
+    p_bench.add_argument("--device", default="cpu", help="cpu, cuda, 0 ...")
+    p_bench.add_argument("--json", default=None, help="write the full result JSON here")
+    p_bench.set_defaults(func=_cmd_benchmark)
 
     p_sweep = sub.add_parser("sweep", help="train and price a grid of bottleneck configs")
     common(p_sweep)

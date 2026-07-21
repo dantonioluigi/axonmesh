@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Unified benchmark (`yolosplit benchmark`, `yolosplit.benchmark`): one command
+  reports the numbers a deployment decision needs together — per-stage latency
+  (preprocess / edge half / wire codec / cloud half), FPS, bytes on the wire vs
+  the JPEG baseline, the link rate that implies, optional power (Jetson INA3221
+  rails) and, with `--data`, the mAP cost. Markdown table plus JSON.
+
 - `train-bottleneck` now shows a per-epoch tqdm progress bar with the running
   loss (`train_bottleneck(..., progress=True)`, the default), so a long run is
   no longer a silent black box; the sweep and tests pass `progress=False`.

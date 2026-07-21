@@ -1,5 +1,12 @@
 """yolosplit: split computing for detection models, from probe to K8s service."""
 
+from .benchmark import (
+    BenchmarkResult,
+    StageTimings,
+    benchmark_directory,
+    benchmark_split,
+    read_jetson_power,
+)
 from .bottleneck import (
     Bottleneck,
     BottleneckTransport,
@@ -55,6 +62,7 @@ __version__ = "0.6.0"
 __all__ = [
     "AdaptivePolicy",
     "BandwidthEstimator",
+    "BenchmarkResult",
     "Bottleneck",
     "BottleneckTransport",
     "CloudServer",
@@ -78,6 +86,7 @@ __all__ = [
     "ReplanDecision",
     "ReplanningController",
     "SplitRunner",
+    "StageTimings",
     "SweepConfig",
     "SweepResult",
     "TrainResult",
@@ -85,6 +94,8 @@ __all__ = [
     "WireStats",
     "__version__",
     "backbone_cut",
+    "benchmark_directory",
+    "benchmark_split",
     "budget_bytes_per_frame",
     "build_graph",
     "compare_map",
@@ -98,6 +109,7 @@ __all__ = [
     "plan_cut",
     "probe_output_shapes",
     "quantize",
+    "read_jetson_power",
     "run_edge",
     "run_sweep",
     "save_bottleneck",
