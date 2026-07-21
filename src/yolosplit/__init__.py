@@ -1,5 +1,13 @@
-"""yolosplit: split computing for detection models, from probe to K8s service."""
+"""yolosplit: split computing for vision models, from probe to K8s service."""
 
+from .adapters import (
+    ModelAdapter,
+    UltralyticsAdapter,
+    UnsupportedModelError,
+    adapter_for,
+    register_adapter,
+    registered_adapters,
+)
 from .bottleneck import (
     Bottleneck,
     BottleneckTransport,
@@ -9,6 +17,7 @@ from .bottleneck import (
 )
 from .edge import EdgeClient, run_edge
 from .evaluate import MapComparison, compare_map, split_inference
+from .model import SplitModel
 from .planner import CutOption, budget_bytes_per_frame, enumerate_cuts, plan_cut
 from .policy import (
     AdaptivePolicy,
@@ -72,18 +81,23 @@ __all__ = [
     "MapComparison",
     "Metrics",
     "Mode",
+    "ModelAdapter",
     "ProtocolError",
     "QuantizedTensor",
     "RawTransport",
     "ReplanDecision",
     "ReplanningController",
+    "SplitModel",
     "SplitRunner",
     "SweepConfig",
     "SweepResult",
     "TrainResult",
+    "UltralyticsAdapter",
+    "UnsupportedModelError",
     "UnsupportedTopologyError",
     "WireStats",
     "__version__",
+    "adapter_for",
     "backbone_cut",
     "budget_bytes_per_frame",
     "build_graph",
@@ -98,6 +112,8 @@ __all__ = [
     "plan_cut",
     "probe_output_shapes",
     "quantize",
+    "register_adapter",
+    "registered_adapters",
     "run_edge",
     "run_sweep",
     "save_bottleneck",
