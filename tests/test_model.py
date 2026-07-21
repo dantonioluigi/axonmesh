@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 import torch
 
-from yolosplit.model import SplitModel
-from yolosplit.split import SplitRunner
-from yolosplit.transport import Int8Transport
+from splitflow.model import SplitModel
+from splitflow.split import SplitRunner
+from splitflow.transport import Int8Transport
 
 
 @pytest.fixture()
@@ -110,7 +110,7 @@ class TestDeploy:
 
 
 def test_accepts_an_adapter_directly(det_model, probe):
-    from yolosplit.adapters import UltralyticsAdapter
+    from splitflow.adapters import UltralyticsAdapter
 
     model = SplitModel(UltralyticsAdapter(det_model), imgsz=160)
     torch.testing.assert_close(

@@ -4,7 +4,7 @@
 then ships whatever the policy decides per frame: serialised detections,
 quantised (bottlenecked) features, or the full JPEG. ``run_edge`` drives a
 frame source through a policy against a live server — the networked twin of
-the offline ``yolosplit stream`` simulator, reporting the same per-frame
+the offline ``splitflow stream`` simulator, reporting the same per-frame
 accounting so the two are directly comparable.
 """
 
@@ -35,7 +35,7 @@ from .stream import FrameReport, Inferer
 
 
 class EdgeClient:
-    """One authenticated connection to a :class:`~yolosplit.server.CloudServer`."""
+    """One authenticated connection to a :class:`~splitflow.server.CloudServer`."""
 
     def __init__(
         self,

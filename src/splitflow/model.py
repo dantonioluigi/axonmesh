@@ -11,7 +11,7 @@ transport, emit Kubernetes config. ``SplitModel`` is the front door:
                       model_url="https://store/model.pt")
 
 It is architecture-agnostic: the model is resolved through the adapter registry
-(:mod:`yolosplit.adapters`), so anything with an adapter works the same way.
+(:mod:`splitflow.adapters`), so anything with an adapter works the same way.
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ class SplitModel:
 
     @property
     def stats(self):
-        """Bytes shipped so far (see :class:`~yolosplit.split.WireStats`)."""
+        """Bytes shipped so far (see :class:`~splitflow.split.WireStats`)."""
         return self._runner.stats
 
     def cut_options(self, imgsz: int | None = None) -> list[CutOption]:
@@ -98,7 +98,7 @@ class SplitModel:
         """Choose the cut that fits a link budget, and apply it.
 
         Returns the chosen option, or ``None`` when nothing fits (in which case
-        the current cut is left alone — see :mod:`yolosplit.planner`).
+        the current cut is left alone — see :mod:`splitflow.planner`).
         """
         budget = budget_bytes_per_frame(bandwidth_mbps, fps)
         choice = plan_cut(self.cut_options(imgsz), budget, transport=transport)

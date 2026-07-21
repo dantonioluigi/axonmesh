@@ -1,5 +1,5 @@
 apiVersion: v2
-name: yolosplit-cloud
+name: splitflow-cloud
 description: >-
   Cloud half of a split-computing detector: receives quantised intermediate
   tensors (or full frames) from edge devices, finishes inference and replies

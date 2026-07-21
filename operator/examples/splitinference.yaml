@@ -19,6 +19,6 @@ spec:
     confLow: 0.4
     driftThreshold: 0.5
   cloud:
-    image: ghcr.io/dantonioluigi/yolosplit-cloud:0.5.0
+    image: ghcr.io/dantonioluigi/splitflow-cloud:0.5.0
     replicas: 2
     imgsz: 640

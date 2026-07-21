@@ -3,15 +3,15 @@ from __future__ import annotations
 import pytest
 import torch
 
-from yolosplit.bottleneck import (
+from splitflow.bottleneck import (
     Bottleneck,
     BottleneckTransport,
     LevelCodec,
     load_bottleneck,
     save_bottleneck,
 )
-from yolosplit.split import SplitRunner, raw_nbytes
-from yolosplit.train import normalize_device, train_bottleneck
+from splitflow.split import SplitRunner, raw_nbytes
+from splitflow.train import normalize_device, train_bottleneck
 
 
 @pytest.fixture()

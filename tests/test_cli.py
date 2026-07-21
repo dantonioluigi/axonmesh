@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from yolosplit.cli import build_parser, main
+from splitflow.cli import build_parser, main
 
 MODEL = "yolo11n.yaml"
 
@@ -13,7 +13,7 @@ def test_version(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["--version"])
     assert exc.value.code == 0
-    assert "yolosplit" in capsys.readouterr().out
+    assert "splitflow" in capsys.readouterr().out
 
 
 def test_requires_a_command():
@@ -109,8 +109,8 @@ def test_evaluate_parser_wires_transport_options():
 
 @pytest.mark.parametrize("transport", ["int8", "fp16", "fp32"])
 def test_build_transport_variants(transport):
-    from yolosplit.cli import _build_transport
-    from yolosplit.transport import Int8Transport, RawTransport
+    from splitflow.cli import _build_transport
+    from splitflow.transport import Int8Transport, RawTransport
 
     args = build_parser().parse_args(
         ["evaluate", "--model", "w.pt", "--data", "d.yaml", "--transport", transport]
@@ -149,7 +149,7 @@ def bottleneck_ckpt(tmp_path, images_dir):
 
 
 def test_train_bottleneck_writes_checkpoint(bottleneck_ckpt):
-    from yolosplit.bottleneck import load_bottleneck
+    from splitflow.bottleneck import load_bottleneck
 
     bottleneck = load_bottleneck(bottleneck_ckpt)
     assert bottleneck.config["latent_channels"] == 4
@@ -157,8 +157,8 @@ def test_train_bottleneck_writes_checkpoint(bottleneck_ckpt):
 
 
 def test_build_transport_prefers_bottleneck(bottleneck_ckpt):
-    from yolosplit.bottleneck import BottleneckTransport
-    from yolosplit.cli import _build_transport
+    from splitflow.bottleneck import BottleneckTransport
+    from splitflow.cli import _build_transport
 
     args = build_parser().parse_args(
         ["evaluate", "--model", "w.pt", "--data", "d.yaml", "--bottleneck", str(bottleneck_ckpt)]

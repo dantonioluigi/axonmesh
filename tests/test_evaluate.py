@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 import torch
 
-from yolosplit.evaluate import MapComparison, split_inference
-from yolosplit.split import SplitRunner
-from yolosplit.transport import Int8Transport
+from splitflow.evaluate import MapComparison, split_inference
+from splitflow.split import SplitRunner
+from splitflow.transport import Int8Transport
 
 
 def test_patch_reroutes_forward_through_split(det_model, probe):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from yolosplit.measure import (
+from splitflow.measure import (
     jpeg_nbytes,
     letterbox,
     measure_directory,
@@ -12,7 +12,7 @@ from yolosplit.measure import (
     to_input_tensor,
     to_markdown,
 )
-from yolosplit.split import SplitRunner
+from splitflow.split import SplitRunner
 
 
 def test_jpeg_nbytes_grows_with_quality(bgr_image):

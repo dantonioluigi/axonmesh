@@ -2,13 +2,13 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "yolosplit-cloud.name" . }}
+  name: {{ include "splitflow-cloud.name" . }}
   labels:
-    {{- include "yolosplit-cloud.labels" . | nindent 4 }}
+    {{- include "splitflow-cloud.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "yolosplit-cloud.selectorLabels" . | nindent 6 }}
+      {{- include "splitflow-cloud.selectorLabels" . | nindent 6 }}
   endpoints:
     - port: metrics
       path: /metrics

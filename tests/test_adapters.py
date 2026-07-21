@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from yolosplit.adapters import (
+from splitflow.adapters import (
     ModelAdapter,
     UltralyticsAdapter,
     UnsupportedModelError,
@@ -12,8 +12,8 @@ from yolosplit.adapters import (
     register_adapter,
     registered_adapters,
 )
-from yolosplit.split import SplitRunner
-from yolosplit.topology import LayerInfo
+from splitflow.split import SplitRunner
+from splitflow.topology import LayerInfo
 
 
 def test_ultralytics_is_registered():
@@ -90,7 +90,7 @@ def test_registering_a_custom_backend(det_model):
         assert isinstance(adapter_for(marker), MarkerAdapter)
         assert "marker" in registered_adapters()
     finally:
-        from yolosplit.adapters import base
+        from splitflow.adapters import base
 
         base._REGISTRY[:] = [e for e in base._REGISTRY if e[0] != "marker"]
 
@@ -104,6 +104,6 @@ def test_a_failing_detector_does_not_break_resolution(det_model):
         # Resolution must skip the broken probe and still find ultralytics.
         assert isinstance(adapter_for(det_model), UltralyticsAdapter)
     finally:
-        from yolosplit.adapters import base
+        from splitflow.adapters import base
 
         base._REGISTRY[:] = [e for e in base._REGISTRY if e[0] != "explodes"]

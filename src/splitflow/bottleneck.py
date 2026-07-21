@@ -7,7 +7,7 @@ spatial resolution before quantisation; with the defaults (8 channels, stride 2)
 the INT8 latent for YOLO11l @640 is ~17 KB/frame vs ~47 KB of JPEG q85.
 
 The encoder runs on the edge, the decoder on the cloud; both are trained
-offline (see :mod:`yolosplit.train`) with the detector frozen, so deploying a
+offline (see :mod:`splitflow.train`) with the detector frozen, so deploying a
 bottleneck never touches the detector weights.
 """
 
