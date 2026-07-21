@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+**The bottleneck is trained against the head output, not just the features**
+(`train_bottleneck(task_weight=...)`, `--task-weight`, default 0.5). Half the
+loss is now the error on the model's own output, with the gradient taken back
+through the frozen tail — `SplitRunner.cloud(grad=True)` exists to make that
+expressible; inference keeps the `no_grad` path. On yolo11n / coco128 at 320,
+150 epochs, at an identical 3.8 KB on the wire: **mAP50-95 0.170 → 0.236**
+(`docs/validation.md`).
+
+- **Reconstruction error is no longer the quality axis.** The task-aware codec
+  reconstructs *worse* while scoring better on everything measured downstream:
+  it stops spending capacity on activations no prediction depends on. `sweep`
+  now draws its Pareto front against `output_error` — the relative error a
+  codec induces on the model output, one extra pass through the cloud half —
+  and reports reconstruction error only as a diagnostic. Anything that ranked
+  configurations by reconstruction was ranking the wrong thing.
+- `axonmesh.train.output_error(runner, bottleneck, paths, ...)` is the metric
+  as a public function: an affordable stand-in for mAP when a full validation
+  run per configuration is not.
+- The sweep keeps `task_weight=0` by default: it ranks configurations by size,
+  and the backward pass through the tail would triple its cost for a ranking
+  it does not use. Retrain the winning configuration with the task loss on.
+
+Measured and worth knowing before spending GPU hours: widening the latent does
+not buy accuracy back. Four times the wire (8 → 32 channels) moves held-out
+output error 0.101 → 0.097 while the training loss falls 0.291 → 0.247 — a
+generalisation gap, not a rate constraint. The remaining accuracy cost is a
+data problem, so the next run is full COCO, not a wider codec.
+
+Not shipped, recorded so it is not re-tried blindly: a deeper codec (GroupNorm,
+residual blocks, PixelShuffle decoder) came out slightly *behind* the plain
+two-convolution stack at equal budget, and would have put that depth in the
+encoder — which runs on the edge device. Worth revisiting only with enough GPU
+budget to train it to convergence.
+
 ## 0.8.0 — 2026-07-21
 
 **Renamed to `axonmesh`.** The package is now `axonmesh`, the CLI is `axonmesh`,
