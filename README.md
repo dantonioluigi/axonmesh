@@ -185,6 +185,7 @@ baked in), so a single build serves any checkpoint:
 helm install detector deploy/helm/axonmesh-cloud \
     --set image.repository=ghcr.io/you/axonmesh-cloud \
     --set model.url=https://your-store/model.pt \
+    --set model.sha256=$(sha256sum model.pt | cut -d' ' -f1) \
     --set bottleneck.url=https://your-store/bottleneck.pt
 ```
 
@@ -192,6 +193,11 @@ An initContainer downloads the checkpoint (or mount a PVC via
 `model.existingClaim`); the pod exposes the wire port plus `/healthz` and
 Prometheus `/metrics` (set `serviceMonitor.enabled=true` with the Prometheus
 Operator). Point edge devices at the resulting Service DNS name.
+
+**Set `model.sha256`.** `torch.load` unpickles the checkpoint, so whatever that
+URL serves is code that runs in the pod. The weight fingerprint in the
+handshake catches *mismatched* halves, but it is computed after loading —
+too late to be a defence against a swapped file.
 
 ### Operator (declarative)
 

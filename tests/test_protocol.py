@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import socket
 import struct
+import zlib
 
 import pytest
 import torch
 
 from axonmesh.protocol import (
     MAGIC,
+    MAX_PAYLOAD,
+    MAX_TENSOR_BYTES,
     Handshake,
     Kind,
     ProtocolError,
@@ -91,3 +94,68 @@ def test_handshake_round_trip_and_mismatches():
 
     theirs = Handshake(model="xyz", bottleneck="b1", cut=8, imgsz=640)
     assert ours.mismatches(theirs) == ["model", "bottleneck", "cut"]
+
+
+class _Replay:
+    """A socket that hands back a fixed byte string, then EOF."""
+
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+        self._pos = 0
+
+    def recv(self, n: int) -> bytes:
+        chunk = self._data[self._pos : self._pos + n]
+        self._pos += len(chunk)
+        return chunk
+
+
+def _features(*, index=4, compressed=0, length=None, body=b"") -> bytes:
+    """A FEATURES payload declaring one tensor, with the lengths as given."""
+    length = len(body) if length is None else length
+    return struct.pack("<H", 1) + struct.pack("<HBI", index, compressed, length) + body
+
+
+@pytest.mark.parametrize(
+    ("name", "payload"),
+    [
+        ("empty", b""),
+        ("truncated count", b"\x01"),
+        ("header cut short", struct.pack("<H", 1) + b"\x00\x00"),
+        ("length longer than the payload", _features(length=9999, body=b"abc")),
+        ("zlib flag over non-zlib bytes", _features(compressed=1, body=b"\x00\x00\x00\x00")),
+        ("valid zlib, not a tensor", _features(compressed=1, body=zlib.compress(b"junk"))),
+    ],
+)
+def test_hostile_features_payloads_are_protocol_errors(name, payload):
+    """Malformed input must never reach the caller as struct/zlib/ValueError.
+
+    The server's connection loop separates "this peer is talking nonsense"
+    from "we have a bug" purely by exception type: anything that leaks out as
+    struct.error is counted as neither, and the error metric under-reports
+    exactly when it matters.
+    """
+    with pytest.raises(ProtocolError):
+        unpack_tensors(payload)
+
+
+def test_a_compression_bomb_is_refused_not_allocated():
+    """400 KB on the wire must not become 400 MB of resident memory."""
+    bomb = zlib.compress(b"\x00" * (8 * MAX_TENSOR_BYTES), 9)
+    assert len(bomb) < MAX_PAYLOAD  # the framing cap alone lets this through
+    with pytest.raises(ProtocolError, match="expand past"):
+        unpack_tensors(_features(compressed=1, body=bomb))
+
+
+def test_unknown_message_kind_is_a_protocol_error():
+    frame = struct.pack("<3sBBQI", MAGIC, 1, 99, 0, 0)
+    with pytest.raises(ProtocolError, match="unknown message kind 99"):
+        recv_message(_Replay(frame))
+
+
+@pytest.mark.parametrize(
+    "payload", [b"{{{", b"not json at all", b'{"unexpected": 1}', b"[1, 2, 3]", b"\xff\xfe"]
+)
+def test_malformed_handshakes_are_protocol_errors(payload):
+    """This parses before the fingerprint check — i.e. on wholly unvetted input."""
+    with pytest.raises(ProtocolError):
+        Handshake.from_bytes(payload)

@@ -31,6 +31,12 @@ MAGIC = b"YSP"
 PROTOCOL_VERSION = 1
 #: Sanity cap on a single payload (a fp32 backbone pyramid is ~17 MB at 640).
 MAX_PAYLOAD = 1 << 29
+#: Cap on the *decompressed* tensor bytes in one FEATURES frame, summed over
+#: every tensor in it. MAX_PAYLOAD bounds what arrives on the wire, which says
+#: nothing about what it inflates to: zlib will happily turn 400 KB into 400 MB.
+#: 64 MB leaves room for an fp32 pyramid several times over and still refuses a
+#: bomb long before the process is killed.
+MAX_TENSOR_BYTES = 1 << 26
 
 _HEADER = struct.Struct("<3sBBQI")
 _TENSOR_HEADER = struct.Struct("<HBI")  # layer index, zlib flag, byte length
@@ -75,7 +81,13 @@ def _recv_exact(sock, n: int) -> bytes:
 
 
 def recv_message(sock) -> tuple[Kind, int, bytes]:
-    """Receive one framed message as ``(kind, frame_id, payload)``."""
+    """Receive one framed message as ``(kind, frame_id, payload)``.
+
+    Everything past the socket is untrusted input, so every failure here is a
+    :class:`ProtocolError`: the server's connection loop distinguishes "this
+    peer is talking nonsense" (drop it, count it) from a bug on our side, and
+    it can only do that if malformed traffic never surfaces as struct.error.
+    """
     magic, version, kind, frame_id, length = _HEADER.unpack(_recv_exact(sock, _HEADER.size))
     if magic != MAGIC:
         raise ProtocolError(f"bad magic {magic!r}")
@@ -83,7 +95,40 @@ def recv_message(sock) -> tuple[Kind, int, bytes]:
         raise ProtocolError(f"protocol version {version}, expected {PROTOCOL_VERSION}")
     if length > MAX_PAYLOAD:
         raise ProtocolError(f"payload of {length} bytes exceeds the {MAX_PAYLOAD} cap")
-    return Kind(kind), frame_id, _recv_exact(sock, length)
+    try:
+        message_kind = Kind(kind)
+    except ValueError as err:
+        raise ProtocolError(f"unknown message kind {kind}") from err
+    return message_kind, frame_id, _recv_exact(sock, length)
+
+
+def _unpack_from(spec: struct.Struct, payload: bytes, offset: int, what: str) -> tuple:
+    if len(payload) - offset < spec.size:
+        raise ProtocolError(
+            f"payload truncated: {what} needs {spec.size} bytes at offset {offset}, "
+            f"{max(len(payload) - offset, 0)} available"
+        )
+    return spec.unpack_from(payload, offset)
+
+
+def _decompress(data: bytes, budget: int) -> bytes:
+    """Inflate a tensor payload, refusing anything that expands past ``budget``.
+
+    ``zlib.decompress`` has no output bound, so a few hundred KB on the wire
+    can ask for hundreds of MB of memory — and the framing cap only limits the
+    *compressed* size. Inflating incrementally against a ceiling turns an
+    out-of-memory kill into a rejected frame.
+    """
+    inflator = zlib.decompressobj()
+    try:
+        out = inflator.decompress(data, budget)
+    except zlib.error as err:
+        raise ProtocolError(f"corrupt compressed tensor: {err}") from err
+    if inflator.unconsumed_tail:
+        raise ProtocolError(
+            f"compressed tensors expand past the {MAX_TENSOR_BYTES} byte cap for one frame"
+        )
+    return out
 
 
 def pack_tensors(
@@ -101,18 +146,36 @@ def pack_tensors(
 
 
 def unpack_tensors(payload: bytes) -> dict[int, torch.Tensor]:
-    """Reverse of :func:`pack_tensors`: dequantised tensors keyed by layer index."""
-    (count,) = _COUNT.unpack_from(payload, 0)
+    """Reverse of :func:`pack_tensors`: dequantised tensors keyed by layer index.
+
+    Every length in the payload is the peer's claim, not a fact: slicing past
+    the end silently returns short bytes, so each one is checked before it is
+    trusted.
+    """
+    (count,) = _unpack_from(_COUNT, payload, 0, "tensor count")
     offset = _COUNT.size
+    budget = MAX_TENSOR_BYTES  # shared across the frame: 65535 tensors are declarable
     tensors: dict[int, torch.Tensor] = {}
-    for _ in range(count):
-        index, compressed, length = _TENSOR_HEADER.unpack_from(payload, offset)
+    for n in range(count):
+        index, compressed, length = _unpack_from(
+            _TENSOR_HEADER, payload, offset, f"header of tensor {n}"
+        )
         offset += _TENSOR_HEADER.size
+        if len(payload) - offset < length:
+            raise ProtocolError(f"tensor {n} claims {length} bytes, {len(payload) - offset} remain")
         data = payload[offset : offset + length]
         offset += length
         if compressed:
-            data = zlib.decompress(data)
-        tensors[index] = dequantize(QuantizedTensor.from_bytes(data))
+            data = _decompress(data, budget)
+        budget -= len(data)
+        if budget < 0:
+            raise ProtocolError(
+                f"tensors in this frame exceed the {MAX_TENSOR_BYTES} byte decompressed cap"
+            )
+        try:
+            tensors[index] = dequantize(QuantizedTensor.from_bytes(data))
+        except (ValueError, KeyError, struct.error) as err:
+            raise ProtocolError(f"tensor {n} is not a valid quantised payload: {err}") from err
     return tensors
 
 
@@ -140,7 +203,22 @@ class Handshake:
 
     @classmethod
     def from_bytes(cls, payload: bytes) -> Handshake:
-        return cls(**json.loads(payload.decode()))
+        """Parse a peer's HELLO. Anything unparseable is a protocol error.
+
+        This runs before the fingerprint check, i.e. on traffic from a peer
+        that has not been vetted at all — the one point where an unhandled
+        exception type is least acceptable.
+        """
+        try:
+            fields = json.loads(payload.decode())
+        except (UnicodeDecodeError, json.JSONDecodeError) as err:
+            raise ProtocolError(f"handshake is not valid JSON: {err}") from err
+        if not isinstance(fields, dict):
+            raise ProtocolError(f"handshake must be an object, got {type(fields).__name__}")
+        try:
+            return cls(**fields)
+        except TypeError as err:
+            raise ProtocolError(f"handshake fields do not match the protocol: {err}") from err
 
     def mismatches(self, other: Handshake) -> list[str]:
         """Field names on which the two sides disagree (empty = compatible)."""

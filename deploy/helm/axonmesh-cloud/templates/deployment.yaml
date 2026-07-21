@@ -20,10 +20,21 @@ spec:
           image: curlimages/curl:8.10.1
           command: ["sh", "-c"]
           args:
-            - >-
+            # A checkpoint is unpickled by torch.load, so whatever this URL
+            # serves is code that runs in the pod. Set model.sha256 to pin it:
+            # the weight fingerprint in the handshake is computed *after*
+            # loading, which is too late to be a defence against a swapped file.
+            - |
+              set -eu
               curl -fsSL -o {{ .Values.model.path }} {{ .Values.model.url | quote }}
+              {{- if .Values.model.sha256 }}
+              echo {{ printf "%s  %s" .Values.model.sha256 .Values.model.path | quote }} | sha256sum -c -
+              {{- end }}
               {{- if .Values.bottleneck.url }}
-              && curl -fsSL -o /models/bottleneck.pt {{ .Values.bottleneck.url | quote }}
+              curl -fsSL -o /models/bottleneck.pt {{ .Values.bottleneck.url | quote }}
+              {{- if .Values.bottleneck.sha256 }}
+              echo {{ printf "%s  /models/bottleneck.pt" .Values.bottleneck.sha256 | quote }} | sha256sum -c -
+              {{- end }}
               {{- end }}
           volumeMounts:
             - name: models

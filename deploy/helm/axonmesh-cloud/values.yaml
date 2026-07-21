@@ -9,6 +9,10 @@ model:
   # URL the initContainer downloads the checkpoint from (any HTTP(S) source).
   # Leave empty and set existingClaim to mount weights from a PVC instead.
   url: ""
+  # Expected sha256 of the downloaded file. Strongly recommended: torch.load
+  # unpickles the checkpoint, so an unverified URL is remote code execution in
+  # the pod. Empty means the file is trusted on faith.
+  sha256: ""
   existingClaim: ""
   # Path the server loads inside the pod (don't change unless you know why).
   path: /models/model.pt
@@ -16,6 +20,7 @@ model:
 bottleneck:
   # Optional trained bottleneck checkpoint (same mechanics as model.url).
   url: ""
+  sha256: ""
 
 server:
   port: 9095
