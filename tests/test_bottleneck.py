@@ -80,6 +80,8 @@ def test_transport_shrinks_bytes_well_below_int8(bottleneck, wire):
     assert set(received) == set(wire)
     for i in wire:
         assert received[i].shape == wire[i].shape
+        # Decoded tensors keep the wire's device (GPU-safe contract).
+        assert received[i].device == wire[i].device
     # latent has 4 channels vs 16/32 and 1/4 the spatial area -> far below raw INT8.
     assert nbytes < raw / 16
 

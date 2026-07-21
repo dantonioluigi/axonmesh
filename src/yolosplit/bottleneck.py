@@ -134,6 +134,8 @@ class BottleneckTransport:
     level: int = 6
 
     def __call__(self, wire: dict[int, torch.Tensor]) -> tuple[dict[int, torch.Tensor], int]:
+        device = next(iter(wire.values())).device
+        self.bottleneck.to(device)  # match the wire's device (no-op if already there)
         with torch.no_grad():
             latents = self.bottleneck.encode(wire)
             received = {}
@@ -141,5 +143,6 @@ class BottleneckTransport:
             for i, z in latents.items():
                 payload = quantize(z, axis=self.axis).to_bytes()
                 nbytes += len(zlib.compress(payload, self.level)) if self.compress else len(payload)
-                received[i] = dequantize(QuantizedTensor.from_bytes(payload))
+                # from_bytes rebuilds on CPU; move back before the decoder runs.
+                received[i] = dequantize(QuantizedTensor.from_bytes(payload)).to(device)
             return self.bottleneck.decode(received), nbytes

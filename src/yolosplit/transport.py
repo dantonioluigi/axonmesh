@@ -57,5 +57,6 @@ class Int8Transport:
         for i, t in wire.items():
             payload = quantize(t, axis=self.axis).to_bytes()
             nbytes += len(zlib.compress(payload, self.level)) if self.compress else len(payload)
-            received[i] = dequantize(QuantizedTensor.from_bytes(payload))
+            # from_bytes rebuilds on CPU; return on the input's device (GPU-safe).
+            received[i] = dequantize(QuantizedTensor.from_bytes(payload)).to(t.device)
         return received, nbytes

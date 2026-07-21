@@ -37,10 +37,13 @@ class QuantizedTensor:
         return len(self.to_bytes())
 
     def to_bytes(self) -> bytes:
-        """Serialise to the wire format (header + scales + zero-points + INT8 data)."""
+        """Serialise to the wire format (header + scales + zero-points + INT8 data).
+
+        Moves to CPU first, so a tensor produced on a GPU serialises correctly.
+        """
         shape = tuple(self.values.shape)
-        scales = self.scale.reshape(-1).numpy().astype("<f4")
-        zps = self.zero_point.reshape(-1).numpy().astype("<i4")
+        scales = self.scale.reshape(-1).cpu().numpy().astype("<f4")
+        zps = self.zero_point.reshape(-1).cpu().numpy().astype("<i4")
         header = struct.pack(
             f"<4sBbB{len(shape)}II",
             _MAGIC,
@@ -50,7 +53,7 @@ class QuantizedTensor:
             *shape,
             len(scales),
         )
-        return header + scales.tobytes() + zps.tobytes() + self.values.numpy().tobytes()
+        return header + scales.tobytes() + zps.tobytes() + self.values.cpu().numpy().tobytes()
 
     @classmethod
     def from_bytes(cls, payload: bytes) -> QuantizedTensor:
