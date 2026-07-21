@@ -17,6 +17,7 @@ import json
 import socket
 import threading
 import time
+import traceback
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -185,6 +186,14 @@ class CloudServer:
                 return
             except ProtocolError:
                 self.metrics.inc("errors_total")
+                return
+            except Exception:
+                # A client must not be able to take a serving thread down
+                # quietly: without this the thread dies, the connection drops
+                # and errors_total stays at zero, so /metrics reports a healthy
+                # server while it is being fed garbage. Log it and count it.
+                self.metrics.inc("errors_total")
+                traceback.print_exc()
                 return
 
     def _handshake_ok(self, conn: socket.socket) -> bool:
