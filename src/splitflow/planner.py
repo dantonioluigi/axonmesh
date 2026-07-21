@@ -17,7 +17,8 @@ from dataclasses import dataclass
 
 import torch.nn as nn
 
-from .topology import build_graph, probe_output_shapes, wire_indices
+from .adapters import ModelAdapter, adapter_for
+from .topology import wire_indices
 
 #: Serialisation overhead per INT8 tensor (header + per-tensor scale/zero-point).
 INT8_TENSOR_OVERHEAD = 40
@@ -47,17 +48,25 @@ class CutOption:
         raise ValueError(f"unknown transport {transport!r}")
 
 
-def enumerate_cuts(det_model: nn.Module, imgsz: int = 640) -> list[CutOption]:
-    """Price every candidate cut of the model at the given input size."""
-    graph = build_graph(det_model)
-    shapes = probe_output_shapes(det_model, imgsz=imgsz)
-    total_params = sum(layer.params for layer in graph)
+def enumerate_cuts(model: nn.Module | ModelAdapter, imgsz: int = 640) -> list[CutOption]:
+    """Price every candidate cut of the model at the given input size.
+
+    Works off the adapter, so any supported architecture can be planned for —
+    pass a model and one is resolved, or pass an adapter directly.
+    """
+    adapter = adapter_for(model)
+    graph = adapter.graph()
+    shapes = adapter.probe_shapes(imgsz)
+    total_params = sum(layer.params for layer in graph) or 1
     options = []
     edge_params = 0
     for cut in range(len(graph) - 1):
         edge_params += graph[cut].params
-        wire = wire_indices(graph, cut)
-        elements = sum(math.prod(shapes[i][1:]) for i in wire)
+        try:
+            wire = wire_indices(graph, cut)
+        except Exception:  # a cut that would need the raw input is not a cut
+            continue
+        elements = sum(math.prod(shapes[i][1:]) for i in wire if shapes[i] is not None)
         options.append(
             CutOption(
                 cut=cut,

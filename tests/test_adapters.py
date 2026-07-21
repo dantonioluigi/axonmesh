@@ -33,8 +33,9 @@ def test_adapter_passthrough(det_model):
 
 
 def test_unknown_model_is_rejected():
+    # The torch.fx fallback claims any nn.Module, so only a non-module is unsupported.
     with pytest.raises(UnsupportedModelError, match="no adapter"):
-        adapter_for(torch.nn.Linear(2, 2))
+        adapter_for("not a model")
 
 
 def test_adapter_answers_the_four_questions(det_model):
@@ -76,7 +77,10 @@ def test_split_runner_accepts_an_adapter(det_model, probe):
 
 
 def test_registering_a_custom_backend(det_model):
-    """A new model family is a registration, not a fork."""
+    """A new model family is a registration, not a fork.
+
+    It must also beat the generic torch.fx fallback, which claims every module.
+    """
 
     class Marker(torch.nn.Module):
         pass
@@ -89,10 +93,25 @@ def test_registering_a_custom_backend(det_model):
     try:
         assert isinstance(adapter_for(marker), MarkerAdapter)
         assert "marker" in registered_adapters()
+        # Registered after the fallback, but resolved before it.
+        names = registered_adapters()
+        assert names.index("marker") < names.index("torch.fx")
     finally:
         from splitflow.adapters import base
 
         base._REGISTRY[:] = [e for e in base._REGISTRY if e[0] != "marker"]
+
+
+def test_fallbacks_always_sort_last():
+    from splitflow.adapters import base
+
+    register_adapter("late-specific", lambda m: False, lambda m: m)
+    try:
+        names = registered_adapters()
+        assert names[-1] == "torch.fx"
+        assert names.index("late-specific") < names.index("torch.fx")
+    finally:
+        base._REGISTRY[:] = [e for e in base._REGISTRY if e[0] != "late-specific"]
 
 
 def test_a_failing_detector_does_not_break_resolution(det_model):

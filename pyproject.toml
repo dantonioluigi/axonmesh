@@ -46,7 +46,7 @@ operator = [
 splitflow = "splitflow.cli:main"
 
 [project.urls]
-Repository = "https://github.com/dantonioluigi/yolo-split-computing"
+Repository = "https://github.com/dantonioluigi/splitflow"
 
 [tool.setuptools.packages.find]
 where = ["src"]
