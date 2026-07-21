@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from yolosplit.topology import (
+from splitflow.topology import (
     MODEL_INPUT,
     LayerInfo,
     UnsupportedTopologyError,

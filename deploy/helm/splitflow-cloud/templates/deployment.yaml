@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "yolosplit-cloud.name" . }}
+  name: {{ include "splitflow-cloud.name" . }}
   labels:
-    {{- include "yolosplit-cloud.labels" . | nindent 4 }}
+    {{- include "splitflow-cloud.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "yolosplit-cloud.selectorLabels" . | nindent 6 }}
+      {{- include "splitflow-cloud.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "yolosplit-cloud.selectorLabels" . | nindent 8 }}
+        {{- include "splitflow-cloud.selectorLabels" . | nindent 8 }}
     spec:
       {{- if .Values.model.url }}
       initContainers:

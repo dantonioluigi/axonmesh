@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from yolosplit.policy import (
+from splitflow.policy import (
     AdaptivePolicy,
     ConfidenceEMADrift,
     Detection,

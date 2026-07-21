@@ -5,13 +5,13 @@ import threading
 import pytest
 import torch
 
-from yolosplit.bottleneck import Bottleneck
-from yolosplit.edge import EdgeClient, run_edge
-from yolosplit.policy import AdaptivePolicy, ConfidenceEMADrift, Detection, Mode
-from yolosplit.protocol import ProtocolError
-from yolosplit.server import CloudServer, Metrics, start_metrics_server
-from yolosplit.split import SplitRunner
-from yolosplit.stream import iter_image_frames
+from splitflow.bottleneck import Bottleneck
+from splitflow.edge import EdgeClient, run_edge
+from splitflow.policy import AdaptivePolicy, ConfidenceEMADrift, Detection, Mode
+from splitflow.protocol import ProtocolError
+from splitflow.server import CloudServer, Metrics, start_metrics_server
+from splitflow.split import SplitRunner
+from splitflow.stream import iter_image_frames
 
 
 def start(server: CloudServer) -> None:
@@ -51,9 +51,9 @@ def test_features_round_trip_matches_local(server, client, det_model, bgr_image)
     assert nbytes > 0
 
     # Replicate the exact pipeline locally: same modules, same INT8 round trip.
-    from yolosplit.measure import to_input_tensor
-    from yolosplit.policy import deserialize_detections
-    from yolosplit.protocol import pack_tensors, unpack_tensors
+    from splitflow.measure import to_input_tensor
+    from splitflow.policy import deserialize_detections
+    from splitflow.protocol import pack_tensors, unpack_tensors
 
     runner = SplitRunner(det_model)
     wire = unpack_tensors(pack_tensors(runner.edge(to_input_tensor(bgr_image, 160))))
@@ -132,7 +132,7 @@ def test_metrics_http_endpoints():
         health = urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz")
         assert health.status == 200
         body = urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics").read().decode()
-        assert 'yolosplit_frames_total{mode="features"} 1.0' in body
+        assert 'splitflow_frames_total{mode="features"} 1.0' in body
         with pytest.raises(urllib.error.HTTPError) as err:
             urllib.request.urlopen(f"http://127.0.0.1:{port}/nope")
         assert err.value.code == 404

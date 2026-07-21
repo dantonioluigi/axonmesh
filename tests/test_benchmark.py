@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from yolosplit.benchmark import (
+from splitflow.benchmark import (
     BenchmarkResult,
     StageTimings,
     benchmark_directory,
@@ -12,8 +12,8 @@ from yolosplit.benchmark import (
     read_jetson_power,
     to_json,
 )
-from yolosplit.stream import iter_image_frames
-from yolosplit.transport import Int8Transport
+from splitflow.stream import iter_image_frames
+from splitflow.transport import Int8Transport
 
 
 class TestStageTimings:
@@ -114,7 +114,7 @@ def test_read_jetson_power_returns_none_or_float():
 
 
 def test_benchmark_cli(capsys, images_dir, tmp_path):
-    from yolosplit.cli import main
+    from splitflow.cli import main
 
     out_json = tmp_path / "bench.json"
     code = main(
@@ -142,7 +142,7 @@ def test_benchmark_cli(capsys, images_dir, tmp_path):
 
 
 def test_benchmark_cli_transport_none(capsys, images_dir):
-    from yolosplit.cli import main
+    from splitflow.cli import main
 
     assert (
         main(

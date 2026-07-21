@@ -1,6 +1,6 @@
 """Live re-planning: drive the cut planner from measured link and edge load.
 
-The planner (:mod:`yolosplit.planner`) is stateless — given a byte budget it
+The planner (:mod:`splitflow.planner`) is stateless — given a byte budget it
 picks a cut. In production the budget is not static: bandwidth drifts and the
 edge's own compute headroom changes. This module closes the loop with two
 estimators and a controller that re-plans **with hysteresis**, because flapping
@@ -75,7 +75,7 @@ class ReplanningController:
     """Stateful wrapper over :func:`plan_cut` with anti-flap hysteresis.
 
     Args:
-        options: candidate cuts (from :func:`yolosplit.planner.enumerate_cuts`).
+        options: candidate cuts (from :func:`splitflow.planner.enumerate_cuts`).
         fps: target frame rate, used to turn Mbps into a per-frame byte budget.
         transport: wire encoding priced by the planner.
         patience: consecutive observations a better plan must persist before an

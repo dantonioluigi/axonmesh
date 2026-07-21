@@ -1,4 +1,4 @@
-"""CLI: ``yolosplit inspect|measure|evaluate|train-bottleneck|stream|plan|sweep|serve|edge``."""
+"""CLI: ``splitflow inspect|measure|evaluate|train-bottleneck|stream|plan|sweep|serve|edge``."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
         print(
             f"{cut:>3}{mark} {wire_s:<20} {_kb(elems * 4):>9} {_kb(elems * 2):>9} {_kb(elems):>9}"
         )
-    print("\nint8 column is raw element count; run `yolosplit measure` for exact wire bytes.")
+    print("\nint8 column is raw element count; run `splitflow measure` for exact wire bytes.")
     return 0
 
 
@@ -265,7 +265,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     if choice is None:
         print(
             "\nno cut fits the budget: raw feature shipping cannot meet this link."
-            "\nUse a trained bottleneck (yolosplit train-bottleneck) or ship JPEG frames."
+            "\nUse a trained bottleneck (splitflow train-bottleneck) or ship JPEG frames."
         )
         return 1
     print(
@@ -449,7 +449,7 @@ def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a li
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="yolosplit",
+        prog="splitflow",
         description="Split computing experiments for YOLO11 detection models.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")

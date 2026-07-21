@@ -3,16 +3,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from yolosplit.measure import to_input_tensor
-from yolosplit.policy import AdaptivePolicy, ConfidenceEMADrift, Detection, Mode
-from yolosplit.split import SplitRunner
-from yolosplit.stream import (
+from splitflow.measure import to_input_tensor
+from splitflow.policy import AdaptivePolicy, ConfidenceEMADrift, Detection, Mode
+from splitflow.split import SplitRunner
+from splitflow.stream import (
     iter_image_frames,
     simulate_stream,
     summarize_stream,
     transport_feature_bytes,
 )
-from yolosplit.transport import Int8Transport
+from splitflow.transport import Int8Transport
 
 
 def det(conf: float) -> Detection:

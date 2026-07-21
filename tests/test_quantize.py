@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from yolosplit.quantize import QuantizedTensor, dequantize, quantize
+from splitflow.quantize import QuantizedTensor, dequantize, quantize
 
 
 @pytest.fixture()

@@ -2,7 +2,21 @@
 
 ## Unreleased
 
-- Unified benchmark (`yolosplit benchmark`, `yolosplit.benchmark`): one command
+**Renamed to `splitflow`.** The package is now `splitflow`, the CLI is
+`splitflow`, the Helm chart is `splitflow-cloud` and the Prometheus metrics are
+prefixed `splitflow_`. The project is a generic split-inference framework, not a
+YOLO demo, and the name now says so. Update imports (`splitflow` -> `splitflow`)
+and any scraping rules.
+
+- Adapter contract (`splitflow.adapters`): `ModelAdapter` (`graph`,
+  `default_cut`, `probe_shapes`, `run_span`) plus a detector registry, with the
+  ultralytics graph reader moved behind `UltralyticsAdapter`. `SplitRunner` runs
+  on any adapter; layer caching is derived from the graph instead of
+  ultralytics' `.save`. Adding a model family is a registration, not a fork.
+- `SplitModel` facade: `split()` to configure cut and codec, `plan()` to choose
+  a cut from a bandwidth/FPS budget, `edge()`/`cloud()`/`run()` to execute, and
+  `deploy()` to emit the `SplitInference` custom resource.
+- Unified benchmark (`splitflow benchmark`, `splitflow.benchmark`): one command
   reports the numbers a deployment decision needs together — per-stage latency
   (preprocess / edge half / wire codec / cloud half), FPS, bytes on the wire vs
   the JPEG baseline, the link rate that implies, optional power (Jetson INA3221
@@ -26,16 +40,16 @@
 
 The split becomes real — and Kubernetes-ready.
 
-- Wire protocol v1 (`yolosplit.protocol`): framed TCP messages, INT8 tensor
+- Wire protocol v1 (`splitflow.protocol`): framed TCP messages, INT8 tensor
   packing, and a HELLO/ACK handshake that exchanges model + bottleneck weight
   fingerprints and the cut point — mismatched halves fail loudly at connect
   time instead of silently producing wrong detections.
-- `yolosplit serve` (`CloudServer`): the cloud half as a long-running service
+- `splitflow serve` (`CloudServer`): the cloud half as a long-running service
   with `/healthz` and dependency-free Prometheus `/metrics`, an optional
   retraining queue for FRAME uploads, and a **pluggable postprocess** — the
   protocol carries opaque result bytes, so a different head/task can be served
   by swapping one function (YOLO NMS is just the default codec).
-- `yolosplit edge` (`EdgeClient`, `run_edge`): local inference + adaptive
+- `splitflow edge` (`EdgeClient`, `run_edge`): local inference + adaptive
   policy against a live server; same per-frame accounting as the offline
   `stream` simulator, so simulated and real numbers are directly comparable.
 - `deploy/`: Dockerfiles for both halves (multi-arch friendly, model-agnostic
@@ -45,7 +59,7 @@ The split becomes real — and Kubernetes-ready.
 
 ## 0.4.0 — 2026-07-14
 
-- Bottleneck sweep (`yolosplit sweep`, `yolosplit.sweep`): trains one
+- Bottleneck sweep (`splitflow sweep`, `splitflow.sweep`): trains one
   bottleneck per (latent channels × stride) configuration and prices each on
   the same frames — serialised INT8 latent bytes (plain and zlib), the JPEG
   baseline, feature reconstruction error — then marks the Pareto front.
@@ -55,7 +69,7 @@ The split becomes real — and Kubernetes-ready.
 
 ## 0.3.0 — 2026-07-14
 
-- Cut planner (`yolosplit plan`, `yolosplit.planner`): given link bandwidth and
+- Cut planner (`splitflow plan`, `splitflow.planner`): given link bandwidth and
   target FPS, prices every candidate cut (wire bytes per transport, share of
   parameters run on the edge) and picks the cut that fits the budget with the
   least edge compute. Returns a clear "nothing fits" verdict when raw feature
@@ -68,13 +82,13 @@ The adaptive layer: learned bottleneck + transmission policy.
 - `Bottleneck`/`LevelCodec`: per-level convolutional autoencoder at the cut
   (configurable latent channels and stride), trained by feature distillation
   with the detector frozen and simulated INT8 noise on the latents
-  (`yolosplit train-bottleneck`). Checkpoints load with `weights_only=True`.
+  (`splitflow train-bottleneck`). Checkpoints load with `weights_only=True`.
 - `BottleneckTransport`: encode → INT8 → decode, byte counts on the serialised
-  latents; `yolosplit evaluate --bottleneck` measures its mAP cost.
+  latents; `splitflow evaluate --bottleneck` measures its mAP cost.
 - Adaptive policy (`AdaptivePolicy`, `ConfidenceEMADrift`): per frame ships
   serialised detections (11 bytes each), features, or the full JPEG (enqueued
   for retraining) based on minimum detection confidence and a drift signal.
-- `yolosplit stream`: simulates the adaptive stream over a directory of frames
+- `splitflow stream`: simulates the adaptive stream over a directory of frames
   and reports bytes saved vs always-JPEG plus the retraining queue.
 - Community files: issue/PR templates, CODEOWNERS, Dependabot, maintenance
   playbook (`docs/maintenance.md`).
@@ -92,4 +106,4 @@ Initial release: the feasibility probe.
 - Bandwidth measurement: JPEG at production quality vs wire set, per frame and
   aggregated.
 - End-to-end mAP comparison via a transparent patch of ultralytics `val()`.
-- CLI: `yolosplit inspect | measure | evaluate`.
+- CLI: `splitflow inspect | measure | evaluate`.

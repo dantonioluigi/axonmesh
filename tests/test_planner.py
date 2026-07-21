@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from yolosplit.planner import (
+from splitflow.planner import (
     INT8_TENSOR_OVERHEAD,
     CutOption,
     budget_bytes_per_frame,
     enumerate_cuts,
     plan_cut,
 )
-from yolosplit.topology import backbone_cut, wire_indices
+from splitflow.topology import backbone_cut, wire_indices
 
 
 @pytest.fixture(scope="module")
@@ -76,7 +76,7 @@ def test_backbone_cut_is_among_options(det_model, graph, options):
 
 
 def test_plan_cli(capsys, tmp_path):
-    from yolosplit.cli import main
+    from splitflow.cli import main
 
     report = tmp_path / "plan.json"
     code = main(
@@ -102,7 +102,7 @@ def test_plan_cli(capsys, tmp_path):
 
 
 def test_plan_cli_fails_when_budget_too_small(capsys):
-    from yolosplit.cli import main
+    from splitflow.cli import main
 
     code = main(
         [

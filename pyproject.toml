@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "yolosplit"
-version = "0.6.0"
+name = "splitflow"
+version = "0.7.0"
 description = "Split computing experiments for YOLO11: cut the network after the backbone and ship quantised intermediate tensors instead of JPEG frames."
 readme = "README.md"
 license = { text = "MIT" }
@@ -36,14 +36,14 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
 ]
-# The Kubernetes operator (operator/) — not needed to use yolosplit itself.
+# The Kubernetes operator (operator/) — not needed to use splitflow itself.
 operator = [
     "kopf>=1.37",
     "kubernetes>=28",
 ]
 
 [project.scripts]
-yolosplit = "yolosplit.cli:main"
+splitflow = "splitflow.cli:main"
 
 [project.urls]
 Repository = "https://github.com/dantonioluigi/yolo-split-computing"
@@ -64,11 +64,11 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "operator/tests"]
 pythonpath = ["operator"]
-addopts = "-ra --cov=yolosplit --cov-report=term-missing"
+addopts = "-ra --cov=splitflow --cov-report=term-missing"
 filterwarnings = ["ignore::DeprecationWarning:ultralytics.*"]
 
 [tool.coverage.run]
-source = ["yolosplit"]
+source = ["splitflow"]
 
 [tool.coverage.report]
 fail_under = 85

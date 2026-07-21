@@ -1,38 +1,50 @@
-# yolo-split-computing
+# splitflow
 
 [![CI](https://github.com/dantonioluigi/yolo-split-computing/actions/workflows/ci.yml/badge.svg)](https://github.com/dantonioluigi/yolo-split-computing/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 
-Split computing experiments for YOLO11 detection models: cut the network after the
-backbone, run the first half on the edge device (e.g. Jetson AGX Orin), and ship
-**quantised intermediate tensors** to the cloud half instead of JPEG frames.
+**Split inference for vision models, from the first measurement to a Kubernetes
+deployment.** Cut a network in two, run the first half on the edge device, ship
+*quantised intermediate tensors* instead of frames, and finish inference in the
+cloud — with the bandwidth, latency and accuracy costs measured, not assumed.
 
-The question this repo answers with numbers: *is transmitting the backbone output
-(INT8-quantised) actually cheaper than transmitting the JPEG frame, and how much
-mAP does it cost?*
+```python
+from splitflow import SplitModel, Int8Transport
+
+model = SplitModel(YOLO("yolo11l.pt").model)   # any adapted model
+model.plan(bandwidth_mbps=50, fps=10)          # pick the cut for the link
+model.split(transport=Int8Transport(compress=True))
+detections = model.run(frame)                  # edge → wire → cloud
+cr = model.deploy(name="detector", image="ghcr.io/you/cloud:0.6.0",
+                  model_url="https://store/model.pt")   # kubectl apply this
+```
 
 ```mermaid
 flowchart LR
-    subgraph edge [Edge - Jetson]
-        A[camera frame] --> B[backbone<br/>layers 0-10]
-        B --> Q[INT8 quantise<br/>P3 / P4 / P5]
+    subgraph edge [Edge device]
+        A[camera frame] --> B[layers 0..cut]
+        B --> Q[quantise / bottleneck]
     end
     Q -- "wire: bytes measured here" --> D
-    subgraph cloud [Cloud - K8s node]
-        D[dequantise] --> E[neck + head<br/>layers 11-23]
-        E --> F[detections]
+    subgraph cloud [Kubernetes]
+        D[decode] --> E[layers cut+1..N]
+        E --> F[results]
     end
 ```
 
-## Why it is not just `model.model[:10]`
+## Why it is not a `model[:k]` slice
 
-YOLO11's neck consumes the backbone taps **P3, P4 and P5** (layers 4, 6 and 10)
-through skip connections, so a naive sequential slice silently drops two of the
-three tensors the cloud half needs. This repo resolves the model graph
-(`m.f`/`m.i` wiring), computes the exact *wire set* for any cut point, and runs
-the two halves so that the split output is **bit-identical** to the unsplit model
-(verified in the test suite).
+A neck consumes several backbone taps through skip connections — in YOLO11,
+layers 4, 6 and 10 — so a naive sequential slice silently drops tensors the
+cloud half still needs. splitflow resolves the model graph, computes the exact
+*wire set* for any cut point, and runs the two halves so the split output is
+**bit-identical** to the unsplit model (verified in the test suite).
+
+Which layers exist and how to run them comes from a small **adapter contract**
+(`graph` / `default_cut` / `probe_shapes` / `run_span`), so the planner, codecs,
+wire protocol, policy and operator are architecture-agnostic. Ultralytics is the
+first adapter; a new model family is a registration, not a fork.
 
 ## Install
 
@@ -51,7 +63,7 @@ pip install -e ".[dev]"
 checkpoint or a bare model YAML):
 
 ```bash
-yolosplit inspect --model yolo11l.pt --imgsz 640
+splitflow inspect --model yolo11l.pt --imgsz 640
 ```
 
 Prints the layer graph (with resolved skip connections) and, for every candidate
@@ -61,7 +73,7 @@ cut, which tensors must cross the wire and their fp32/fp16/int8 sizes.
 wire set produced by the edge half on the *same letterboxed pixels*:
 
 ```bash
-yolosplit measure --model yolo11l.pt --images path/to/images/val \
+splitflow measure --model yolo11l.pt --images path/to/images/val \
     --quality 85 --json results/measure.json
 ```
 
@@ -69,7 +81,7 @@ yolosplit measure --model yolo11l.pt --images path/to/images/val \
 unsplit vs split+INT8:
 
 ```bash
-yolosplit evaluate --model yolo11l.pt --data data.yaml \
+splitflow evaluate --model yolo11l.pt --data data.yaml \
     --transport int8 --per-channel --json results/eval.json
 ```
 
@@ -80,9 +92,9 @@ frozen, simulated INT8 noise on the latents); with the defaults
 of JPEG q85:
 
 ```bash
-yolosplit train-bottleneck --model yolo11l.pt \
+splitflow train-bottleneck --model yolo11l.pt \
     --images path/to/images/train --device 0 --out bottleneck.pt
-yolosplit evaluate --model yolo11l.pt --data data.yaml \
+splitflow evaluate --model yolo11l.pt --data data.yaml \
     --bottleneck bottleneck.pt --json results/eval_bottleneck.json
 ```
 
@@ -96,7 +108,7 @@ JPEG on drift or low confidence — which is also enqueued as a hard-frame
 sample for later use:
 
 ```bash
-yolosplit stream --model yolo11l.pt --images path/to/images/val \
+splitflow stream --model yolo11l.pt --images path/to/images/val \
     --bottleneck bottleneck.pt --json results/stream.json
 ```
 
@@ -105,7 +117,7 @@ only mean something together: a cut that halves the bytes is worthless if it
 doubles the edge latency. One command reports them per stage:
 
 ```bash
-yolosplit benchmark --model yolo11l.pt --images path/to/frames \
+splitflow benchmark --model yolo11l.pt --images path/to/frames \
     --transport int8 --compress --device 0 --json results/bench.json
 # add --data data.yaml to also measure the mAP cost (slower)
 ```
@@ -128,7 +140,7 @@ Everything is also available as a library:
 
 ```python
 from ultralytics import YOLO
-from yolosplit import SplitRunner, Int8Transport, split_inference
+from splitflow import SplitRunner, Int8Transport, split_inference
 
 yolo = YOLO("yolo11l.pt")
 runner = SplitRunner(yolo.model, transport=Int8Transport(axis=1))
@@ -148,10 +160,10 @@ instead of silently producing wrong results.
 
 ```bash
 # cloud (a K8s pod, or just another host)
-yolosplit serve --model yolo11l.pt --bottleneck bottleneck.pt --port 9095
+splitflow serve --model yolo11l.pt --bottleneck bottleneck.pt --port 9095
 
 # edge (Jetson, laptop, anything with the same weights)
-yolosplit edge --model yolo11l.pt --bottleneck bottleneck.pt \
+splitflow edge --model yolo11l.pt --bottleneck bottleneck.pt \
     --host <cloud-host> --port 9095 --images path/to/frames
 ```
 
@@ -167,8 +179,8 @@ half. The images are model-agnostic (weights are provided at runtime, not
 baked in), so a single build serves any checkpoint:
 
 ```bash
-helm install detector deploy/helm/yolosplit-cloud \
-    --set image.repository=ghcr.io/you/yolosplit-cloud \
+helm install detector deploy/helm/splitflow-cloud \
+    --set image.repository=ghcr.io/you/splitflow-cloud \
     --set model.url=https://your-store/model.pt \
     --set bottleneck.url=https://your-store/bottleneck.pt
 ```
@@ -192,7 +204,7 @@ spec:
   model: { url: https://your-store/model.pt }
   bottleneck: { url: https://your-store/bottleneck.pt }
   cut: { mode: auto, auto: { bandwidthMbps: 50, fps: 10 } }
-  cloud: { image: ghcr.io/you/yolosplit-cloud:0.5.0, replicas: 2 }
+  cloud: { image: ghcr.io/you/splitflow-cloud:0.5.0, replicas: 2 }
 ```
 
 `cut.mode: fixed` pins a layer; `auto` writes the budget into the edge
@@ -204,19 +216,20 @@ cluster (also run in CI).
 
 ## Not just YOLO / not just Jetson
 
-The split machinery is deliberately generic and the specifics are seams, not
-assumptions:
+The specifics are seams, not assumptions:
 
-- **Model** — the splitter reads any ultralytics detection graph via its
-  `m.f`/`m.i` wiring, not a hardcoded layer list; the cut is chosen from the
-  graph. Non-detection heads plug in by replacing the server's `postprocess`
-  (the wire carries opaque result bytes; YOLO NMS is only the default codec).
-- **Edge device** — "edge" is just a host that runs the backbone and speaks
-  the protocol. Jetson is the reference target, but the edge image is plain
-  Python and builds for amd64/arm64 alike; swap the base image for a
-  vendor-accelerated one where available.
-- **Transport** — INT8 / bottleneck / raw are pluggable `Transport` objects;
-  a new codec is one class implementing the wire round-trip.
+- **Model** — a `ModelAdapter` answers four questions (`graph`, `default_cut`,
+  `probe_shapes`, `run_span`) and registers a detector; `SplitModel(model)` then
+  resolves it automatically. `UltralyticsAdapter` is the first one. Everything
+  above the adapter — planner, codecs, wire protocol, policy, operator — never
+  sees an architecture.
+- **Task** — the wire carries *opaque* result bytes, so a different head plugs
+  in by replacing the server's `postprocess` (YOLO NMS is only the default).
+- **Edge device** — "edge" is any host that runs the first half and speaks the
+  protocol. Jetson is the reference target, but the edge image is plain Python
+  and builds for amd64/arm64 alike.
+- **Transport** — raw / INT8 / learned bottleneck are pluggable `Transport`
+  objects; a new codec is one class implementing the wire round-trip.
 
 ## Results
 
@@ -237,7 +250,7 @@ INT8+zlib ships ~30x more bytes than the JPEG the model would otherwise consume.
 This confirms the known risk rather than killing the idea — it quantifies the
 gap a **learned bottleneck at the cut** has to close (~30x on top of INT8+zlib)
 for feature shipping to beat frame shipping. mAP cost of INT8 (via
-`yolosplit evaluate`) is only worth measuring once a bottleneck
+`splitflow evaluate`) is only worth measuring once a bottleneck
 makes the size competitive.
 
 Latency numbers measured off-device are not representative; re-measure on the

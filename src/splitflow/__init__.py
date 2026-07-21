@@ -1,5 +1,13 @@
-"""yolosplit: split computing for detection models, from probe to K8s service."""
+"""splitflow: split computing for vision models, from probe to K8s service."""
 
+from .adapters import (
+    ModelAdapter,
+    UltralyticsAdapter,
+    UnsupportedModelError,
+    adapter_for,
+    register_adapter,
+    registered_adapters,
+)
 from .benchmark import (
     BenchmarkResult,
     StageTimings,
@@ -16,6 +24,7 @@ from .bottleneck import (
 )
 from .edge import EdgeClient, run_edge
 from .evaluate import MapComparison, compare_map, split_inference
+from .model import SplitModel
 from .planner import CutOption, budget_bytes_per_frame, enumerate_cuts, plan_cut
 from .policy import (
     AdaptivePolicy,
@@ -57,7 +66,7 @@ from .topology import (
 from .train import TrainResult, train_bottleneck
 from .transport import Int8Transport, RawTransport
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 __all__ = [
     "AdaptivePolicy",
@@ -80,19 +89,24 @@ __all__ = [
     "MapComparison",
     "Metrics",
     "Mode",
+    "ModelAdapter",
     "ProtocolError",
     "QuantizedTensor",
     "RawTransport",
     "ReplanDecision",
     "ReplanningController",
+    "SplitModel",
     "SplitRunner",
     "StageTimings",
     "SweepConfig",
     "SweepResult",
     "TrainResult",
+    "UltralyticsAdapter",
+    "UnsupportedModelError",
     "UnsupportedTopologyError",
     "WireStats",
     "__version__",
+    "adapter_for",
     "backbone_cut",
     "benchmark_directory",
     "benchmark_split",
@@ -110,6 +124,8 @@ __all__ = [
     "probe_output_shapes",
     "quantize",
     "read_jetson_power",
+    "register_adapter",
+    "registered_adapters",
     "run_edge",
     "run_sweep",
     "save_bottleneck",

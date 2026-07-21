@@ -36,7 +36,7 @@ class CutOption:
         """Estimated bytes/frame for ``transport`` in {int8, fp16, fp32}.
 
         INT8 includes serialisation overhead; zlib is content-dependent and
-        deliberately not estimated — measure it with ``yolosplit measure``.
+        deliberately not estimated — measure it with ``splitflow measure``.
         """
         if transport == "int8":
             return self.wire_elements + INT8_TENSOR_OVERHEAD * len(self.wire)

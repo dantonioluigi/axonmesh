@@ -33,7 +33,7 @@ How this repository is kept healthy as forks and pull requests arrive.
 ## Releases
 
 1. Update `CHANGELOG.md` and bump the version in **both** `pyproject.toml` and
-   `src/yolosplit/__init__.py` (they must match).
+   `src/splitflow/__init__.py` (they must match).
 2. Tag: `git tag -a v0.x.0 -m "..." && git push origin v0.x.0`, then create a
    GitHub Release from the tag pasting the changelog entry.
 3. Versioning is semver-flavoured: breaking API/CLI changes bump minor while

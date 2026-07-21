@@ -13,15 +13,15 @@ still useful: it quantifies the gap a learned bottleneck has to close.
 
 ## Protocol
 
-1. **Inspect** — `yolosplit inspect --model yolo11l.pt`. Confirms the
+1. **Inspect** — `splitflow inspect --model yolo11l.pt`. Confirms the
    backbone/neck boundary (layer 10, `C2PSA` in YOLO11) and prices every
    candidate cut, since the wire set changes with the cut point: early cuts ship
    one tensor, the backbone cut ships three (P3/P4/P5 via skip connections).
-2. **Measure bandwidth** — `yolosplit measure` on a representative sample of
+2. **Measure bandwidth** — `splitflow measure` on a representative sample of
    validation images, JPEG quality set to what the camera pipeline actually
    uses. Compare: JPEG (letterboxed at 640, i.e. the pixels the model
    actually sees), fp32, fp16, INT8, INT8+zlib.
-3. **Measure accuracy** — `yolosplit evaluate` on the validation split: ultralytics `val()` twice, unsplit baseline vs split with the INT8
+3. **Measure accuracy** — `splitflow evaluate` on the validation split: ultralytics `val()` twice, unsplit baseline vs split with the INT8
    round-trip injected at the cut. Same dataloader, same NMS, same metrics.
 4. **Decide** — fill the results table in the README. Compression ratio and
    ΔmAP are the two numbers that decide whether to build the next stage.
