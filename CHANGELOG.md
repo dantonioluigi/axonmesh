@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Generic `FxAdapter` (`splitflow.adapters.fx`): recovers the graph of any
+  traceable `nn.Module` with `torch.fx` and interprets a span of it, so the
+  planner, codecs, wire protocol and facade apply to architectures the project
+  was never written for — verified bit-identical on ResNet-18, MobileNetV3 and
+  ViT-B/16 alongside YOLO11. Registered as a *fallback*: `register_adapter` now
+  sorts fallbacks last, so a purpose-built backend added later still wins
+  (without that, the catch-all would have made plugins pointless).
+  `enumerate_cuts` is adapter-based too, so planning is no longer YOLO-only.
+
 **Renamed to `splitflow`.** The package is now `splitflow`, the CLI is
 `splitflow`, the Helm chart is `splitflow-cloud` and the Prometheus metrics are
 prefixed `splitflow_`. The project is a generic split-inference framework, not a

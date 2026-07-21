@@ -1,6 +1,6 @@
 # splitflow
 
-[![CI](https://github.com/dantonioluigi/yolo-split-computing/actions/workflows/ci.yml/badge.svg)](https://github.com/dantonioluigi/yolo-split-computing/actions/workflows/ci.yml)
+[![CI](https://github.com/dantonioluigi/splitflow/actions/workflows/ci.yml/badge.svg)](https://github.com/dantonioluigi/splitflow/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 
@@ -49,8 +49,8 @@ first adapter; a new model family is a registration, not a fork.
 ## Install
 
 ```bash
-git clone https://github.com/dantonioluigi/yolo-split-computing
-cd yolo-split-computing
+git clone https://github.com/dantonioluigi/splitflow
+cd splitflow
 python -m venv .venv && source .venv/bin/activate
 # CPU-only torch keeps the venv small; skip this line on machines with CUDA/Jetson
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
@@ -220,9 +220,22 @@ The specifics are seams, not assumptions:
 
 - **Model** — a `ModelAdapter` answers four questions (`graph`, `default_cut`,
   `probe_shapes`, `run_span`) and registers a detector; `SplitModel(model)` then
-  resolves it automatically. `UltralyticsAdapter` is the first one. Everything
-  above the adapter — planner, codecs, wire protocol, policy, operator — never
-  sees an architecture.
+  resolves one automatically. `UltralyticsAdapter` reads YOLO's wiring;
+  **`FxAdapter` handles anything else traceable** by recovering the graph with
+  `torch.fx`, so it is the fallback for arbitrary models. Verified end to end
+  (bit-identical split, INT8 wire) on:
+
+  | model | backend | layers | split exact |
+  |---|---|---:|---|
+  | YOLO11 | ultralytics | 24 | ✅ |
+  | ResNet-18 | torch.fx | 70 | ✅ |
+  | MobileNetV3-Small | torch.fx | 158 | ✅ |
+  | ViT-B/16 | torch.fx | 235 | ✅ |
+
+  A purpose-built adapter always beats the fallback: registrations sort ahead of
+  it, so adding a family is a `register_adapter(...)` call, not a fork. Models
+  that assert on input shape (torchvision's ViT) can be traced by the caller and
+  handed over as a `GraphModule`.
 - **Task** — the wire carries *opaque* result bytes, so a different head plugs
   in by replacing the server's `postprocess` (YOLO NMS is only the default).
 - **Edge device** — "edge" is any host that runs the first half and speaks the

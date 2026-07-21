@@ -71,7 +71,7 @@ class SplitModel:
 
     def cut_options(self, imgsz: int | None = None) -> list[CutOption]:
         """Every candidate cut, priced in wire bytes and edge compute."""
-        return enumerate_cuts(self.adapter.module, imgsz=imgsz or self.imgsz)
+        return enumerate_cuts(self.adapter, imgsz=imgsz or self.imgsz)
 
     # -- configuration ---------------------------------------------------
 

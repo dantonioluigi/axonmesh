@@ -75,17 +75,30 @@ def cache_indices(graph: list[LayerInfo]) -> set[int]:
 
 Detector = Callable[[Any], bool]
 Builder = Callable[[Any], ModelAdapter]
-_REGISTRY: list[tuple[str, Detector, Builder]] = []
+_REGISTRY: list[tuple[str, Detector, Builder, bool]] = []
 
 
-def register_adapter(name: str, detects: Detector, build: Builder) -> None:
-    """Register a backend: ``detects(model)`` decides, ``build(model)`` wraps."""
-    _REGISTRY.append((name, detects, build))
+def register_adapter(name: str, detects: Detector, build: Builder, fallback: bool = False) -> None:
+    """Register a backend: ``detects(model)`` decides, ``build(model)`` wraps.
+
+    Order is resolution order, and **fallbacks always sort last**. Without that
+    rule a catch-all backend registered at import time (the ``torch.fx`` one
+    claims every module) would shadow every purpose-built adapter added later,
+    which would make registering a plugin pointless.
+    """
+    entry = (name, detects, build, fallback)
+    if fallback:
+        _REGISTRY.append(entry)
+        return
+    first_fallback = next(
+        (i for i, (_, _, _, is_fallback) in enumerate(_REGISTRY) if is_fallback), len(_REGISTRY)
+    )
+    _REGISTRY.insert(first_fallback, entry)
 
 
 def registered_adapters() -> list[str]:
     """Names of the registered backends, in resolution order."""
-    return [name for name, _, _ in _REGISTRY]
+    return [name for name, _, _, _ in _REGISTRY]
 
 
 def adapter_for(model: Any) -> ModelAdapter:
@@ -95,7 +108,7 @@ def adapter_for(model: Any) -> ModelAdapter:
     """
     if isinstance(model, ModelAdapter) and not isinstance(model, nn.Module):
         return model
-    for _name, detects, build in _REGISTRY:
+    for _name, detects, build, _fallback in _REGISTRY:
         try:
             claimed = detects(model)
         except Exception:  # a probe must never break resolution

@@ -10,8 +10,13 @@ from .base import (
 )
 from .ultralytics import UltralyticsAdapter
 
+# Imported last so the generic fallback is tried after purpose-built adapters.
+from .fx import FxAdapter, TraceError  # isort: skip
+
 __all__ = [
+    "FxAdapter",
     "ModelAdapter",
+    "TraceError",
     "UltralyticsAdapter",
     "UnsupportedModelError",
     "adapter_for",
