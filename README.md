@@ -24,6 +24,8 @@ the two results below — one negative, one not.
 | is edge-first cheaper than sending frames? | `axonmesh cascade` | mAP and bytes for both, on your data |
 | what routing threshold should I run? | `axonmesh calibrate` | the sweep, and the one that meets your budget — no labels needed |
 | what does it cost on the device? | `axonmesh benchmark` | per-stage latency, FPS, power |
+| which codec size is worth it? | `axonmesh sweep` | bytes vs induced output error, Pareto-marked |
+| the link quality moves — now what? | `axonmesh replan` | cut re-selection over a bandwidth trace, with hysteresis |
 | now run it | `axonmesh serve` · `edge` | two processes, one TCP link, Prometheus metrics |
 
 ### The two findings that shaped it
@@ -344,7 +346,7 @@ URL is code that runs in the pod, and the initContainer refuses a digest
 mismatch rather than starting on a file nobody vouched for.
 
 `cut.mode: fixed` pins a layer; `auto` writes the budget into the edge
-ConfigMap for the edge to plan against live (see live re-planning). Install the
+ConfigMap for the edge to plan against live (`axonmesh replan`). Install the
 CRD + RBAC from `operator/manifests/`, run the operator (image in
 `operator/Dockerfile`), and `kubectl apply` the resource. The reconcile logic
 is pure and unit-tested; `deploy/kind/e2e.sh` exercises it end-to-end on a kind
