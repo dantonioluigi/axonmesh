@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+**Edge-first inference (`axonmesh cascade`, `axonmesh.cascade`) — the
+configuration that does win on bandwidth.** A small model runs on the device
+and the cloud is consulted only for frames it is unsure about; a confident
+frame ships its detections, eleven bytes each. Measured against the honest
+alternative, which is not "raw tensors" but "keep sending every frame, just
+send a worse one":
+
+  KB/frame   cascade   JPEG-quality-only
+      0.04     0.385   -- (no frame fits)
+      ~3.2     0.412   0.048
+      ~5.0     0.440   0.152
+      ~7.0     0.436   0.294
+     ~11.2     0.448   0.448
+
+The cascade curve is above the other at every matched bandwidth, by 1.5x to
+8.6x mAP, and its cheapest point ships 38 bytes/frame for 86% of the cloud's
+accuracy. The reason is asymmetric damage: the edge answers easy frames on the
+*original* image, while turning JPEG quality down degrades every frame
+including the ones that needed nothing. See docs/cascade.md.
+
+- Escalated frames go through a real JPEG round-trip before the cloud scores
+  them (`jpeg_roundtrip`). Charging for a codec without applying it is what
+  made an earlier reading of this same experiment show 0.556 instead of 0.448.
+- `AdaptivePolicy.decide_confidence` splits the thresholds from the statistic
+  they are applied to, and `Cascade` takes `frame_confidence`. The default,
+  the *minimum* detection confidence, suits a few known objects and is close to
+  a constant on a crowded scene — some box is always marginal. On coco128 it
+  buys the same mAP as the mean for 12% more bandwidth.
+
+## Earlier in this cycle
+
 **The bottleneck is trained against the head output, not just the features**
 (`train_bottleneck(task_weight=...)`, `--task-weight`, default 0.5). Half the
 loss is now the error on the model's own output, with the gradient taken back
