@@ -4,41 +4,67 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 
-**Split inference for vision models, from the first measurement to a Kubernetes
-deployment.** Cut a network in two, run the first half on the edge device, ship
-*quantised intermediate tensors* instead of frames, and finish inference in the
-cloud — with the bandwidth, latency and accuracy costs measured, not assumed.
+**Decide where a vision model should run — on the device, in the cloud, or
+split between them — and prove the answer in bytes and mAP before deploying
+it.** Then deploy it: wire protocol, cloud service, Helm chart, Kubernetes
+operator.
 
-Measured, including when the answer is unflattering. On public weights, at a
-rate comparable to a JPEG frame, the learned codec ships *more* bytes than the
-JPEG and returns half the mAP — so at these cuts split inference does not win
-on bandwidth, and the reasons it is still worth deploying are privacy, edge
-compute and a wire cost that does not move with the scene
-([docs/validation.md](docs/validation.md)). The tooling here exists to find
-that out for your model before a deployment does.
+Every configuration here is priced on **both axes at once**. That sounds
+obvious and is the whole difference: measuring bandwidth against one baseline
+and accuracy against another is how a design that loses looks like one that
+wins. Running that discipline on this project's own premise is what produced
+the two results below — one negative, one not.
 
-```python
-from axonmesh import SplitModel, Int8Transport
+### What it is for
 
-model = SplitModel(YOLO("yolo11l.pt").model)   # any adapted model
-model.plan(bandwidth_mbps=50, fps=10)          # pick the cut for the link
-model.split(transport=Int8Transport(compress=True))
-detections = model.run(frame)                  # edge → wire → cloud
-cr = model.deploy(name="detector", image="ghcr.io/you/cloud:0.6.0",
-                  model_url="https://store/model.pt")   # kubectl apply this
+| you want to know | run | what you get |
+|---|---|---|
+| does splitting cost accuracy? | `axonmesh evaluate` | baseline vs split mAP, bytes/frame |
+| where should I cut? | `axonmesh plan` · `inspect` | every cut priced against a bandwidth/FPS budget |
+| is edge-first cheaper than sending frames? | `axonmesh cascade` | mAP and bytes for both, on your data |
+| what does it cost on the device? | `axonmesh benchmark` | per-stage latency, FPS, power |
+| now run it | `axonmesh serve` · `edge` | two processes, one TCP link, Prometheus metrics |
+
+### The two findings that shaped it
+
+**Compressing intermediate features loses to sending the frame.** At a rate
+comparable to a JPEG, the learned codec ships *more* bytes and returns half the
+mAP. `inspect` shows why in one screen: across all 23 cuts of YOLO11n the
+smallest wire set is 100 KB as INT8, against 11 KB for the coded frame — no cut
+of the network is smaller than the image it came from
+([docs/validation.md](docs/validation.md)).
+
+**Not sending anything wins instead.** A small model answers on the device and
+the cloud is consulted only for frames it is unsure about; a confident frame
+ships eleven bytes per detection. Against the honest alternative — keep sending
+every frame, just send a worse one — that returns **1.5x to 8.6x the mAP at
+matched bytes**, and its cheapest operating point is **38 bytes per frame for
+86% of the cloud's accuracy** ([docs/cascade.md](docs/cascade.md)).
+
+Splitting still earns its place where bandwidth was standing in for something
+else: activations are not a reconstructable frame, so footage never leaves the
+device; the cloud never runs the whole model; and the wire cost is identical
+every frame rather than moving with scene complexity.
+
+```bash
+# cloud: small model, large model behind it for escalated frames
+axonmesh serve --model yolo11n.pt --escalate-to yolo11m.pt --port 9095
+
+# edge: answers locally when confident, escalates when not
+axonmesh edge --model yolo11n.pt --images ./frames \
+    --host cloud.internal --port 9095 --cascade --statistic mean
+#   24 frames -> 631.6 KB on the wire (always-JPEG 1176.6 KB, saved 46.3%)
 ```
 
 ```mermaid
 flowchart LR
-    subgraph edge [Edge device]
-        A[camera frame] --> B[layers 0..cut]
-        B --> Q[quantise / bottleneck]
-    end
-    Q -- "wire: bytes measured here" --> D
-    subgraph cloud [Kubernetes]
-        D[decode] --> E[layers cut+1..N]
-        E --> F[results]
-    end
+    A[camera frame] --> B[edge model]
+    B --> C{confident?}
+    C -- yes --> D["detections — 11 bytes each"]
+    C -- no --> E[escalate the frame]
+    E --> F[larger cloud model]
+    D --> G[result]
+    F --> G
 ```
 
 ## Why it is not a `model[:k]` slice
@@ -52,7 +78,19 @@ cloud half still needs. axonmesh resolves the model graph, computes the exact
 Which layers exist and how to run them comes from a small **adapter contract**
 (`graph` / `default_cut` / `probe_shapes` / `run_span`), so the planner, codecs,
 wire protocol, policy and operator are architecture-agnostic. Ultralytics is the
-first adapter; a new model family is a registration, not a fork.
+first adapter, `torch.fx` is the catch-all: ResNet-18, MobileNetV3 and ViT-B/16
+all split bit-identically without a line written for them.
+
+```python
+from axonmesh import SplitModel, Int8Transport
+
+model = SplitModel(YOLO("yolo11l.pt").model)   # any adapted model
+model.plan(bandwidth_mbps=50, fps=10)          # pick the cut for the link
+model.split(transport=Int8Transport(compress=True))
+detections = model.run(frame)                  # edge → wire → cloud
+cr = model.deploy(name="detector", image="ghcr.io/you/cloud:0.8.0",
+                  model_url="https://store/model.pt")   # kubectl apply this
+```
 
 ## Install
 
@@ -128,11 +166,23 @@ diagnostic it is; it can improve while accuracy gets worse, and did.
 No GPU locally? [notebooks/colab_validation.ipynb](notebooks/colab_validation.ipynb)
 runs this on COCO (train2017 → val2017) on a free Colab GPU.
 
-**5. Simulate the adaptive stream** — the edge runs the detector locally and
-per frame ships only what the frame deserves: serialised boxes (11 bytes per
-detection) when confident, (bottlenecked) features when uncertain, the full
-JPEG on drift or low confidence — which is also enqueued as a hard-frame
-sample for later use:
+**5. Price edge-first inference** — the configuration that wins on bandwidth.
+A small model answers on the device; the cloud is consulted only for frames it
+is unsure about. Reports mAP *and* bytes so the trade is visible, not asserted:
+
+```bash
+axonmesh cascade --edge yolo11n.pt --cloud yolo11m.pt \
+    --data coco128.yaml --imgsz 320 --conf-high 0.6 --statistic mean
+```
+
+`--statistic` chooses how a frame's detections become the one confidence the
+threshold is applied to. The default `min` escalates if *any* object is
+doubtful, which fits a station holding a few known objects and is close to a
+constant on a crowded scene — on coco128 it escalates 78% of frames for the
+same mAP `mean` gets from 68%.
+
+**5b. Simulate the adaptive stream** — the same routing offline, with the
+feature path available and hard frames enqueued for later use:
 
 ```bash
 axonmesh stream --model yolo11l.pt --images path/to/images/val \
@@ -178,26 +228,45 @@ with split_inference(yolo.model, transport=Int8Transport()) as runner:
     yolo.val(data="data.yaml")       # standard ultralytics val, split underneath
 ```
 
-## Run it split, over the network
+## Run it over the network
 
-The cloud half runs as a service; the edge half connects to it. A HELLO/ACK
-handshake exchanges the weight fingerprints of both halves and the cut point,
-so an edge and a cloud running different weights are rejected at connect time
-instead of silently producing wrong results.
+The cloud half runs as a service; the edge connects to it. The wire protocol
+carries three payload kinds — serialised detections, quantised feature tensors,
+and full JPEG frames — chosen per frame by the policy. FRAME uploads can be
+queued as hard-frame samples with `serve --retrain-dir /retrain`.
+
+A HELLO/ACK handshake settles what the two ends have to agree on, and that
+depends on the **role**:
 
 ```bash
-# cloud (a K8s pod, or just another host)
+# split: two halves of one network. Identical weights are mandatory, because
+# halves on different weights produce confidently wrong output and nothing
+# else would catch it. Mismatches are rejected at connect time.
 axonmesh serve --model yolo11l.pt --bottleneck bottleneck.pt --port 9095
-
-# edge (Jetson, laptop, anything with the same weights)
-axonmesh edge --model yolo11l.pt --bottleneck bottleneck.pt \
+axonmesh edge  --model yolo11l.pt --bottleneck bottleneck.pt \
     --host <cloud-host> --port 9095 --images path/to/frames
+
+# cascade: two independent models. Differing weights are the entire point, so
+# only the protocol, role and image size are compared.
+axonmesh serve --model yolo11n.pt --escalate-to yolo11m.pt --port 9095
+axonmesh edge  --model yolo11n.pt --host <cloud-host> --port 9095 \
+    --images path/to/frames --cascade --statistic mean
 ```
 
-The wire protocol carries three payload kinds — serialised detections,
-quantised (bottlenecked) feature tensors, and full JPEG frames — chosen per
-frame by the adaptive policy. FRAME uploads can be queued as hard-frame
-samples with `serve --retrain-dir /retrain`.
+Roles cannot be mixed: a split client talking to a cascade server fails at
+connect, because the two ends would disagree about what the fingerprints mean.
+Under `--cascade` an escalation always ships the frame — the cloud runs a
+*different* model and cannot consume this one's activations, and the server
+refuses feature payloads rather than answering with the wrong half.
+
+`/metrics` shows the routing as it happens:
+
+```
+axonmesh_frames_total{mode="detections"} 11
+axonmesh_frames_total{mode="frame"} 13
+axonmesh_wire_bytes_total{mode="detections"} 286
+axonmesh_wire_bytes_total{mode="frame"} 646028
+```
 
 ## Deploy on Kubernetes
 
@@ -279,29 +348,29 @@ The specifics are seams, not assumptions:
 
 ## Results
 
-First measurement — a YOLO11l fine-tuned on a private industrial dataset
-(4 classes), 12 frames, 640×640,
-backbone cut (layer 10, wire set = P3/P4/P5, i.e. layers 4/6/10):
+Every number below is printed by a command in this repo, and every claim is
+paired with the command that produced it. Byte counts are hardware-independent;
+**latency is not** — measure it on the device you will deploy on.
 
-| configuration | wire KB/frame (mean) | vs JPEG q85 |
+### 1. Intermediate tensors are far bigger than the picture
+
+`axonmesh measure`, YOLO11l @640, backbone cut (wire set = layers 4/6/10):
+
+| what crosses the wire | KB/frame | vs JPEG q85 |
 |---|---:|---:|
-| JPEG q85, letterboxed @640 (baseline) | 47.1 | 1.0x |
+| JPEG q85, letterboxed (baseline) | 47.1 | 1.0x |
 | fp32 tensors | 16 800 | 357x **larger** |
 | fp16 tensors | 8 400 | 178x **larger** |
 | INT8 per-tensor | 4 200 | 89x **larger** |
 | INT8 per-tensor + zlib | 1 406 | 30x **larger** |
 
-**Finding:** at the backbone cut, naive quantisation does not come close: even
-INT8+zlib ships ~30x more bytes than the JPEG the model would otherwise consume.
-This confirms the known risk rather than killing the idea — it quantifies the
-gap a **learned bottleneck at the cut** has to close (~30x on top of INT8+zlib)
-for feature shipping to beat frame shipping.
+This is the gap a learned codec has to close for feature shipping to beat frame
+shipping. It is also only half a comparison — which is the trap.
 
-**And the bytes are only half the comparison.** Shipping the JPEG frame and
-running the unsplit model in the cloud costs bandwidth and *nothing else* — it
-is the baseline accuracy by construction. Measured on public weights and data
-(yolo11n @320; every codec row trained on COCO val2017 and evaluated on
-coco128, which share no images):
+### 2. Both axes together: the codec does not close it
+
+`axonmesh evaluate`, yolo11n @320. Codec rows trained on COCO val2017 and
+evaluated on coco128, which share no images:
 
 | what crosses the wire | KB/frame | mAP50-95 |
 |---|---:|---:|
@@ -310,42 +379,39 @@ coco128, which share no images):
 | learned bottleneck, 8 latent channels | 3.8 | 0.154 |
 | learned bottleneck, 32ch, measured allocation | 14.1 | 0.195 |
 
-At a JPEG-comparable rate the codec ships more bytes than the JPEG and returns
-half the accuracy, and 3.7x the wire buys 0.041 mAP — the curve is flat.
-`axonmesh inspect` shows why: across all 23 cuts the smallest wire set is
-100 KB as INT8 against 11 KB for the coded frame. A JPEG is already a very good
-code for a natural image, and no cut of this network is smaller than the image
-it came from.
+Sending a frame costs bandwidth and nothing else — the cloud then runs the
+unsplit model, so it is the baseline accuracy by construction. At a
+JPEG-comparable rate the codec ships more bytes and returns half the accuracy,
+and 3.7x the wire buys 0.041 mAP: the curve is flat, so no reachable rate
+closes it.
 
-So **split inference here does not win on bandwidth**. What it does win is what
-bandwidth was standing in for: raw frames never leave the device (activations
-are not a reconstructable image), the cloud never runs the whole model, and the
-wire cost is identical every frame instead of moving with scene complexity.
-The full reading — including the epochs, data volume, latent width and bit
-allocation that were tried and quantified — is in
-[docs/validation.md](docs/validation.md).
+Longer training (asymptotic), 50x the data at matched compute (10%), 4x the
+latent width (4%) and a measured per-level bit allocation (4%) were each tried
+and each quantified — [docs/validation.md](docs/validation.md).
 
-**What does win on bandwidth is not sending anything.** `axonmesh cascade`
-runs a small model on the device and consults the cloud only for the frames it
-is unsure about; a confident frame ships its detections, eleven bytes each.
-Against the honest alternative — keep sending every frame, just send a worse
-one — the cascade returns **1.5x to 8.6x the mAP at matched bytes**, and its
-cheapest operating point is **38 bytes per frame for 86% of the cloud's
-accuracy**:
+### 3. What wins: not sending anything
+
+`axonmesh cascade`, yolo11n escalating to yolo11m, coco128 @320. The honest
+alternative is not "raw tensors" but "keep sending every frame, just send a
+worse one", so both curves trade accuracy for bandwidth and the question is
+which dominates:
 
 | KB/frame | cascade | JPEG-quality-only |
 |---:|---:|---:|
-| 0.04 | **0.385** | — |
+| 0.04 | **0.385** | — (no frame fits) |
 | ~3.2 | **0.412** | 0.048 |
 | ~5.0 | **0.440** | 0.152 |
+| ~7.0 | **0.436** | 0.294 |
 | ~11.2 | 0.448 | 0.448 |
 
-The edge answers easy frames on the *original* image; turning the JPEG quality
-down degrades every frame, including the ones that needed nothing. Details,
-caveats and the threshold sweep: [docs/cascade.md](docs/cascade.md).
+One curve is above the other at every rate. The mechanism is asymmetric damage:
+the edge answers easy frames on the **original** image, while turning the JPEG
+quality down degrades every frame, including the ones that needed nothing.
 
-Latency numbers measured off-device are not representative; re-measure on the
-Jetson before drawing conclusions about end-to-end delay.
+Live over TCP, 24 frames, `conf_high=0.6`: 631.6 KB against 1176.6 KB
+always-JPEG — 46% saved, matching what the offline measurement predicted for
+that threshold. Caveats, the threshold sweep and a pre-registered criterion that
+was *not* met: [docs/cascade.md](docs/cascade.md).
 
 ## Roadmap
 
@@ -364,13 +430,20 @@ Jetson before drawing conclusions about end-to-end delay.
 - [x] Train the bottleneck against the head output → +39% relative mAP at the
       same wire cost, and the finding that reconstruction error is not a proxy
       for accuracy ([docs/validation.md](docs/validation.md))
-- [ ] Close the remaining accuracy gap. At 70x compression on coco128 the codec
-      still costs 39% of mAP50-95, and **spending more bytes does not buy it
-      back**: 4x the latent width moves held-out output error 0.101 → 0.097
-      while the training loss falls 0.291 → 0.247. That gap is generalisation,
-      not capacity, so the next run is full COCO on GPU
-      ([notebooks/colab_validation.ipynb](notebooks/colab_validation.ipynb)) —
-      not a wider codec
+- [x] Price both axes against the same row → **feature compression loses to
+      sending the frame**, and no cut of the network is smaller than the image
+      it came from. Longer training, 50x the data, 4x the latent width and a
+      measured bit allocation are each quantified and none of them close it
+- [x] Edge-first cascade, offline and live: 1.5–8.6x the mAP of the obvious
+      alternative at matched bytes, running over the wire protocol with role
+      negotiation ([docs/cascade.md](docs/cascade.md))
+- [ ] Cascade on the operator: a `SplitInference` role that reconciles an
+      escalation model, so the winning configuration is declarative like the
+      split one already is
+- [ ] Confidence calibration. The routing threshold is applied to a raw
+      detector score, which is not a probability — a miscalibrated edge either
+      escalates too much or answers when it should not, and neither is visible
+      in the current metrics
 - [ ] Task-head plugins beyond YOLO NMS, so the cloud half serves segmentation
       and classification heads without a fork
 
