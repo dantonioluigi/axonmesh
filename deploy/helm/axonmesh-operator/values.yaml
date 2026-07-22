@@ -1,0 +1,27 @@
+image:
+  repository: ghcr.io/dantonioluigi/axonmesh-operator
+  tag: ""                # defaults to the chart appVersion
+  pullPolicy: IfNotPresent
+
+# The operator watches every namespace by default. Set to false to watch only
+# the namespace it is installed in, which is what a shared cluster usually
+# wants: a ClusterRole is granted either way, but the watch is narrowed.
+watchAllNamespaces: true
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  name: ""               # defaults to the release name
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

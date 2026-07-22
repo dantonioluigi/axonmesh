@@ -5,7 +5,9 @@ metadata:
   labels:
     {{- include "axonmesh-cloud.labels" . | nindent 4 }}
 spec:
+{{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+{{- end }}
   selector:
     matchLabels:
       {{- include "axonmesh-cloud.selectorLabels" . | nindent 6 }}

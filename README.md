@@ -312,6 +312,31 @@ URL serves is code that runs in the pod. The weight fingerprint in the
 handshake catches *mismatched* halves, but it is computed after loading —
 too late to be a defence against a swapped file.
 
+### One command, then a resource
+
+```bash
+helm install axonmesh-operator deploy/helm/axonmesh-operator
+kubectl apply -f operator/examples/cascade.yaml
+```
+
+The chart brings the CRD, the RBAC and the controller; the images are published
+by CI to `ghcr.io/dantonioluigi/axonmesh-{cloud,edge,operator}`, so nothing has
+to be built first.
+
+**What this does and does not give you.** If an object detector already runs
+inside your cluster and clients POST it frames, installing this changes
+nothing — the saving comes from work moving to the device, and the device has
+to participate. The case it is for is *frames arriving from outside the
+cluster*: cameras or gateways running `axonmesh edge`, answering locally when
+confident and escalating when not. Then the cluster side is one resource, and
+the wire drops by the escalation rate.
+
+Scaling follows from that: the cloud half's load is the escalation traffic of
+every edge pointed at it, which moves with the scenes those cameras look at
+rather than with anything in the cluster. `cloud.autoscaling` hands the replica
+count to an HPA; a fixed number is either waste or a queue, and which one it is
+changes during the day.
+
 ### Operator (declarative)
 
 For fleets, `operator/` provides a `SplitInference` custom resource and a kopf

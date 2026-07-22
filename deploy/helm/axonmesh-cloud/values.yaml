@@ -3,7 +3,19 @@ image:
   tag: ""            # defaults to the chart appVersion
   pullPolicy: IfNotPresent
 
+# Ignored when autoscaling.enabled: the HPA owns the replica count, and
+# setting both makes the two fight on every reconcile.
 replicaCount: 1
+
+autoscaling:
+  # The cloud half's load is the escalation traffic of every edge pointed at
+  # it, which moves with the scenes those cameras look at rather than with
+  # anything inside the cluster. A fixed count is either waste or a queue, and
+  # which one changes during the day.
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
 
 model:
   # URL the initContainer downloads the checkpoint from (any HTTP(S) source).

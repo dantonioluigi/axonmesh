@@ -161,7 +161,14 @@ def render_deployment(name: str, spec: dict[str, Any], owner: dict | None = None
         "kind": "Deployment",
         "metadata": meta,
         "spec": {
-            "replicas": int(cloud.get("replicas", 1)),
+            # Omitted entirely under autoscaling: a Deployment that keeps
+            # setting replicas and an HPA that keeps changing them fight on
+            # every reconcile, and the CR looks like it is being ignored.
+            **(
+                {}
+                if cloud.get("autoscaling", {}).get("enabled")
+                else {"replicas": int(cloud.get("replicas", 1))}
+            ),
             "selector": {"matchLabels": _labels(name)},
             "template": {
                 "metadata": {"labels": _labels(name)},
@@ -220,11 +227,69 @@ def render_service(name: str, spec: dict[str, Any], owner: dict | None = None) -
     }
 
 
+def render_hpa(name: str, spec: dict[str, Any], owner: dict | None = None) -> dict[str, Any] | None:
+    """A HorizontalPodAutoscaler for the cloud half, when one is asked for.
+
+    The cloud half's load is the escalation traffic of every edge pointed at
+    it, which moves with the scenes those cameras are looking at rather than
+    with anything inside the cluster. A fixed replica count is therefore either
+    wasteful or a queue, and which one it is changes during the day.
+
+    Returns ``None`` when autoscaling is off, so ``replicas`` stays the
+    Deployment's own field — setting both would have the two fight, with the
+    HPA winning and the CR appearing to be ignored.
+    """
+    autoscaling = spec.get("cloud", {}).get("autoscaling", {})
+    if not autoscaling.get("enabled"):
+        return None
+    minimum = int(autoscaling.get("minReplicas", 1))
+    maximum = int(autoscaling.get("maxReplicas", 10))
+    if maximum < minimum:
+        raise SpecError(
+            f"cloud.autoscaling.maxReplicas ({maximum}) is below minReplicas ({minimum})"
+        )
+    meta: dict[str, Any] = {"name": f"{name}-cloud", "labels": _labels(name)}
+    if owner:
+        meta["ownerReferences"] = [owner]
+    return {
+        "apiVersion": "autoscaling/v2",
+        "kind": "HorizontalPodAutoscaler",
+        "metadata": meta,
+        "spec": {
+            "scaleTargetRef": {
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "name": f"{name}-cloud",
+            },
+            "minReplicas": minimum,
+            "maxReplicas": maximum,
+            "metrics": [
+                {
+                    "type": "Resource",
+                    "resource": {
+                        "name": "cpu",
+                        "target": {
+                            "type": "Utilization",
+                            "averageUtilization": int(
+                                autoscaling.get("targetCPUUtilizationPercentage", 70)
+                            ),
+                        },
+                    },
+                }
+            ],
+        },
+    }
+
+
 def render_all(name: str, spec: dict[str, Any], uid: str | None = None) -> list[dict[str, Any]]:
     """Every object a SplitInference owns, ready to apply."""
     owner = owner_reference(name, uid) if uid else None
-    return [
+    objects = [
         render_configmap(name, spec, owner),
         render_deployment(name, spec, owner),
         render_service(name, spec, owner),
     ]
+    hpa = render_hpa(name, spec, owner)
+    if hpa is not None:
+        objects.append(hpa)
+    return objects
