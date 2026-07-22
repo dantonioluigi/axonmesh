@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+**Usable as a library, not only as a CLI.** `py.typed` ships, so a consumer's
+type checker sees the annotations that were already there instead of treating
+every symbol as `Any`; `cascade`, `allocate` and `calibrate` are exported from
+the package root.
+
+**`axonmesh calibrate` picks the routing threshold by measuring it, without
+labels.** `conf_high` is compared against a detector confidence score, which is
+not a probability -- 0.6 does not mean "right six times in ten", and the mapping
+moves between models and scenes, so a threshold chosen by intuition does not
+transfer. Rather than calibrating the score, this measures what each threshold
+does: run both models over frames from the deployment and ask, per frame, would
+the cloud have disagreed. Agreement is symmetric F1 over IoU-matched boxes, so
+it needs no annotations at all -- only footage from the camera that will run,
+which is both the distribution that matters and the one a site actually has.
+
+`--max-kb` returns the most faithful threshold that fits; `--min-agreement` the
+cheapest that clears the floor; a constraint nothing satisfies raises rather
+than returning the closest miss, because a returned threshold implies its budget
+was met. On public frames the label-free sweep selects 0.60 -- the same
+threshold the labelled mAP measurement picked -- and reads slightly more
+conservatively than mAP retention (0.951 vs 0.982), which is the right direction
+for a routing decision to err in.
+
 **Edge-first inference (`axonmesh cascade`, `axonmesh.cascade`) — the
 configuration that does win on bandwidth.** A small model runs on the device
 and the cloud is consulted only for frames it is unsure about; a confident

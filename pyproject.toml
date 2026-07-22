@@ -51,6 +51,11 @@ Repository = "https://github.com/dantonioluigi/axonmesh"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# PEP 561: without this marker a consumer's type checker treats every symbol
+# in this package as Any, however completely it is annotated here.
+[tool.setuptools.package-data]
+axonmesh = ["py.typed"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
