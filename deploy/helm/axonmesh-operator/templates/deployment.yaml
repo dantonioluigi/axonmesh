@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axonmesh-operator.fullname" . }}
+  labels: {{- include "axonmesh-operator.labels" . | nindent 4 }}
+spec:
+  # kopf runs --standalone, which skips peer election: a second replica would
+  # reconcile the same resources concurrently rather than stand by.
+  replicas: 1
+  selector:
+    matchLabels: {{- include "axonmesh-operator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "axonmesh-operator.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "axonmesh-operator.serviceAccountName" . }}
+      containers:
+        - name: operator
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - run
+            - -m
+            - splitinference.handlers
+            - --standalone
+            {{- if .Values.watchAllNamespaces }}
+            - --all-namespaces
+            {{- else }}
+            - --namespace={{ .Release.Namespace }}
+            {{- end }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

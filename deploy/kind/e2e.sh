@@ -15,13 +15,12 @@ CLUSTER="${CLUSTER:-splitinference-e2e}"
 PYTHON="${PYTHON:-python}"
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 OP_LOG="${OP_LOG:-$REPO/deploy/kind/operator.log}"
-OP_PID=""
+OP_IMAGE="${OP_IMAGE:-axonmesh-operator:e2e}"
 
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
 grn() { printf '\033[32m%s\033[0m\n' "$*"; }
 
 cleanup() {
-  [ -n "$OP_PID" ] && kill "$OP_PID" 2>/dev/null || true
   if [ "${KEEP:-0}" != "1" ]; then
     kind delete cluster --name "$CLUSTER" >/dev/null 2>&1 || true
   fi
@@ -35,7 +34,8 @@ assert() { # <description> <actual> <expected>
 wait_for() { # <description> <cmd...>  — poll up to 90s
   for _ in $(seq 1 90); do "${@:2}" >/dev/null 2>&1 && return 0; sleep 1; done
   red "timed out waiting for: $1"
-  echo "---- operator log ----"; tail -30 "$OP_LOG" 2>/dev/null || true
+  echo "---- operator log ----"
+  kubectl logs -l app.kubernetes.io/name=axonmesh-operator --tail=40 2>/dev/null || true
   exit 1
 }
 
@@ -43,17 +43,29 @@ echo "== create kind cluster '$CLUSTER' =="
 kind get clusters 2>/dev/null | grep -qx "$CLUSTER" || kind create cluster --name "$CLUSTER" --wait 90s
 kubectl config use-context "kind-$CLUSTER" >/dev/null
 
-echo "== install CRD + RBAC =="
-kubectl apply -f "$REPO/operator/manifests/crd.yaml"
-kubectl apply -f "$REPO/operator/manifests/rbac.yaml"
-kubectl wait --for=condition=established crd/splitinferences.axonmesh.dev --timeout=30s
+# Build and run the *image*, installed by the chart, as a user would.
+#
+# This used to start kopf locally with PYTHONPATH=operator and the developer's
+# own kubeconfig. That exercised the handlers and nothing else, and hid three
+# bugs at once: the image collapsed its command into ENTRYPOINT so Kubernetes
+# `args` were appended rather than substituted, it never put /app on sys.path
+# so `kopf run -m` could not find the handlers, and the ClusterRole was missing
+# the CRD and namespace reads kopf performs at startup. None of the three can
+# appear when the operator runs as the developer instead of as its
+# ServiceAccount, out of its own image.
+echo "== build + load the operator image =="
+docker build -q -f "$REPO/operator/Dockerfile" -t "$OP_IMAGE" "$REPO/operator"
+kind load docker-image "$OP_IMAGE" --name "$CLUSTER"
 
-echo "== start operator (kopf, local) =="
-( cd "$REPO" && PYTHONPATH=operator KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}" \
-    "$PYTHON" -m kopf run -m splitinference.handlers \
-    --standalone --all-namespaces --verbose >"$OP_LOG" 2>&1 ) &
-OP_PID=$!
-sleep 6  # let kopf connect and register its watch before we create the CR
+echo "== helm install the operator (chart brings the CRD and RBAC) =="
+helm upgrade --install axonmesh-operator "$REPO/deploy/helm/axonmesh-operator" \
+  --set image.repository="${OP_IMAGE%%:*}" --set image.tag="${OP_IMAGE##*:}" --wait --timeout 120s
+kubectl wait --for=condition=established crd/splitinferences.axonmesh.dev --timeout=30s
+kubectl rollout status deployment/axonmesh-operator --timeout=120s
+# A running pod is not a watching operator: kopf authenticates first, and a CR
+# created in that window is missed. Gate on the log line, not on a sleep.
+wait_for "operator authenticated and watching" bash -c \
+  "kubectl logs -l app.kubernetes.io/name=axonmesh-operator --tail=20 | grep -q 'authentication has finished'"
 
 echo "== apply a SplitInference =="
 kubectl apply -f "$REPO/operator/examples/splitinference.yaml"
@@ -69,6 +81,16 @@ CR_UID="$(kubectl get splitinference detector -o jsonpath='{.metadata.uid}')"
 assert "configmap ownerRef uid" "$(kubectl get cm detector-edge-config -o jsonpath='{.metadata.ownerReferences[0].uid}')" "$CR_UID"
 wait_for "status Ready" bash -c "kubectl get splitinference detector -o jsonpath='{.status.phase}' | grep -q Ready"
 assert "status cut mode" "$(kubectl get splitinference detector -o jsonpath='{.status.cut.mode}')" "auto"
+
+# The operator recovers from missing permissions by retrying, so an RBAC gap
+# shows up as a wall of 403s rather than a failure. Assert on the log.
+echo "== assert the ServiceAccount can do its job =="
+if kubectl logs -l app.kubernetes.io/name=axonmesh-operator --tail=200 | grep -q "Forbidden"; then
+  echo "FAIL: the operator hit RBAC denials (it retries, so reconcile still worked)"
+  kubectl logs -l app.kubernetes.io/name=axonmesh-operator --tail=200 | grep -m3 "Forbidden"
+  exit 1
+fi
+echo "  ok: no RBAC denials"
 
 echo "== update: switch to a fixed cut, scale down =="
 kubectl patch splitinference detector --type merge \

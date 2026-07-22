@@ -9,6 +9,7 @@ from splitinference.render import (
     render_all,
     render_configmap,
     render_deployment,
+    render_hpa,
     render_service,
     resolve_cut,
     resolve_role,
@@ -183,3 +184,53 @@ def test_a_url_cannot_smuggle_shell_into_the_init_container():
     script = init_script(render_deployment("det", spec))
     assert "; touch /pwned" not in script.replace("'https://x/m.pt; touch /pwned'", "")
     assert "'https://x/m.pt; touch /pwned'" in script  # quoted, so it stays one argument
+
+
+def cloud_spec(**autoscaling):
+    spec = {"model": {"url": "https://x/m.pt"}, "cloud": {"image": "ghcr.io/you/cloud:1"}}
+    if autoscaling:
+        spec["cloud"]["autoscaling"] = autoscaling
+    return spec
+
+
+def test_no_autoscaling_means_no_hpa():
+    assert render_hpa("det", cloud_spec()) is None
+    assert render_hpa("det", cloud_spec(enabled=False)) is None
+
+
+def test_an_autoscaled_deployment_does_not_pin_its_own_replicas():
+    """A Deployment that keeps setting replicas and an HPA that keeps changing
+    them fight on every reconcile, and the CR looks like it is being ignored."""
+    fixed = render_deployment("det", cloud_spec())["spec"]
+    scaled = render_deployment("det", cloud_spec(enabled=True))["spec"]
+
+    assert fixed["replicas"] == 1
+    assert "replicas" not in scaled
+
+
+def test_the_hpa_targets_the_cloud_deployment_it_belongs_to():
+    hpa = render_hpa("det", cloud_spec(enabled=True, minReplicas=2, maxReplicas=8))
+    assert hpa["spec"]["scaleTargetRef"]["name"] == "det-cloud"
+    assert hpa["spec"]["scaleTargetRef"]["kind"] == "Deployment"
+    assert (hpa["spec"]["minReplicas"], hpa["spec"]["maxReplicas"]) == (2, 8)
+
+
+def test_an_inverted_replica_range_is_refused():
+    """maxReplicas below minReplicas is rejected by the API server anyway; the
+    operator should say so with the numbers rather than surface a 422."""
+    with pytest.raises(SpecError, match="below minReplicas"):
+        render_hpa("det", cloud_spec(enabled=True, minReplicas=5, maxReplicas=2))
+
+
+def test_the_hpa_is_owned_so_it_is_collected_with_the_resource():
+    owner = owner_reference("det", "uid-1")
+    hpa = render_hpa("det", cloud_spec(enabled=True), owner)
+    assert hpa["metadata"]["ownerReferences"] == [owner]
+
+
+def test_render_all_includes_the_hpa_only_when_asked():
+    without = [o["kind"] for o in render_all("det", cloud_spec())]
+    with_hpa = [o["kind"] for o in render_all("det", cloud_spec(enabled=True))]
+
+    assert "HorizontalPodAutoscaler" not in without
+    assert with_hpa[-1] == "HorizontalPodAutoscaler"

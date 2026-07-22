@@ -1,0 +1,12 @@
+apiVersion: v2
+name: axonmesh-operator
+description: >-
+  The SplitInference operator: install it once, then describe split or
+  cascade deployments as custom resources instead of wiring Deployments,
+  Services and edge ConfigMaps by hand.
+type: application
+version: 0.1.0
+appVersion: "0.8.0"
+home: https://github.com/dantonioluigi/axonmesh
+sources:
+  - https://github.com/dantonioluigi/axonmesh

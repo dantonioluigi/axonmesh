@@ -1,0 +1,28 @@
+axonmesh-operator is installed. The SplitInference CRD is registered, so a
+deployment is now a resource rather than a set of manifests.
+
+Edge-first inference (a small model on the device, a larger one behind it):
+
+  apiVersion: axonmesh.dev/v1alpha1
+  kind: SplitInference
+  metadata:
+    name: detector
+  spec:
+    model:      { url: https://store/yolo11n.pt, sha256: "..." }
+    escalateTo: { url: https://store/yolo11m.pt, sha256: "..." }
+    policy:     { confHigh: 0.6, statistic: mean }
+    cloud:
+      image: {{ .Values.image.repository | replace "operator" "cloud" }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+      autoscaling: { enabled: true, minReplicas: 1, maxReplicas: 10 }
+
+  kubectl apply -f detector.yaml
+  kubectl get splitinference detector
+
+Set `confHigh` from measurement rather than intuition — a detector's score is
+not a probability:
+
+  axonmesh calibrate --edge yolo11n.pt --cloud yolo11m.pt \
+      --images ./footage --max-kb 5
+
+The edge half runs outside the cluster and has to participate: installing this
+chart alone changes nothing about traffic that already arrives as full frames.

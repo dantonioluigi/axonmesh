@@ -69,7 +69,16 @@ def _apply(obj: dict[str, Any], namespace: str) -> None:
             namespace,
             obj,
         )
-    else:  # pragma: no cover - render only emits the three kinds above
+    elif kind == "HorizontalPodAutoscaler":
+        autoscaling = client.AutoscalingV2Api()
+        _create_or_patch(
+            autoscaling.create_namespaced_horizontal_pod_autoscaler,
+            autoscaling.patch_namespaced_horizontal_pod_autoscaler,
+            name,
+            namespace,
+            obj,
+        )
+    else:  # pragma: no cover - render only emits the kinds above
         raise kopf.PermanentError(f"cannot apply unknown kind {kind}")
 
 

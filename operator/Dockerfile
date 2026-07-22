@@ -4,8 +4,17 @@
 FROM python:3.12-slim
 
 WORKDIR /app
+# `kopf` is a console script, so sys.path[0] is /usr/local/bin, not the working
+# directory: without this the handlers module is invisible to `kopf run -m`.
+ENV PYTHONPATH=/app
 RUN pip install --no-cache-dir "kopf>=1.37" "kubernetes>=28"
 COPY splitinference ./splitinference
 
-# kopf watches the CRD and reconciles; --standalone skips peering (single replica).
-ENTRYPOINT ["kopf", "run", "-m", "splitinference.handlers", "--standalone", "--all-namespaces"]
+# ENTRYPOINT is the binary and CMD the default arguments, so a deployment can
+# override the arguments without repeating the binary. Collapsing both into
+# ENTRYPOINT means Kubernetes `args` are appended rather than substituted, and
+# kopf is handed its own subcommand twice.
+#
+# --standalone skips peer election: the operator runs as a single replica.
+ENTRYPOINT ["kopf"]
+CMD ["run", "-m", "splitinference.handlers", "--standalone", "--all-namespaces"]
