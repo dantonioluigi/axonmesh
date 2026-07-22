@@ -543,12 +543,16 @@ def _cmd_serve(args: argparse.Namespace) -> int:  # pragma: no cover - blocks fo
         retrain_dir=args.retrain_dir,
         host=args.host,
         port=args.port,
+        escalate_to=_load_model(args.escalate_to) if args.escalate_to else None,
     )
     start_metrics_server(server.metrics, args.metrics_port, host=args.host)
+    role = "cascade" if args.escalate_to else "split"
     print(
         f"cloud half listening on {args.host}:{server.port} "
-        f"(cut={server.runner.cut}, metrics on :{args.metrics_port}/metrics)"
+        f"(role={role}, cut={server.runner.cut}, metrics on :{args.metrics_port}/metrics)"
     )
+    if args.escalate_to:
+        print(f"escalated frames answered by {args.escalate_to}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -557,10 +561,13 @@ def _cmd_serve(args: argparse.Namespace) -> int:  # pragma: no cover - blocks fo
 
 
 def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a live server
+    from .cascade import mean_confidence, min_confidence, quantile_confidence
     from .edge import EdgeClient, run_edge
     from .policy import AdaptivePolicy, ConfidenceEMADrift
+    from .protocol import Role
     from .stream import iter_image_frames, summarize_stream, yolo_inferer
 
+    statistics = {"min": min_confidence, "mean": mean_confidence, "q25": quantile_confidence(0.25)}
     yolo = _load_yolo(args.model)
     policy = AdaptivePolicy(
         conf_high=args.conf_high,
@@ -574,6 +581,7 @@ def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a li
         cut=args.cut,
         bottleneck=_load_optional_bottleneck(args.bottleneck),
         imgsz=args.imgsz,
+        role=Role.CASCADE if args.cascade else Role.SPLIT,
     ) as client:
         reports = run_edge(
             iter_image_frames(args.images, limit=args.limit),
@@ -581,6 +589,7 @@ def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a li
             policy,
             client,
             quality=args.quality,
+            frame_confidence=statistics[args.statistic],
         )
     summary = summarize_stream(reports)
     print(
@@ -798,6 +807,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--port", type=int, default=9095)
     p_serve.add_argument("--metrics-port", type=int, default=9090, help="/healthz and /metrics")
     p_serve.add_argument("--retrain-dir", default=None, help="where FRAME uploads are enqueued")
+    p_serve.add_argument(
+        "--escalate-to",
+        default=None,
+        help="larger model answering escalated frames; makes this a cascade, so the "
+        "handshake stops requiring the edge to run the same weights",
+    )
     p_serve.set_defaults(func=_cmd_serve)
 
     p_edge = sub.add_parser("edge", help="stream frames to a live cloud half")
@@ -814,6 +829,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_edge.add_argument("--quality", type=int, default=85, help="JPEG quality")
     p_edge.add_argument("--limit", type=int, default=None, help="max frames")
     p_edge.add_argument("--json", default=None, help="write summary JSON here")
+    p_edge.add_argument(
+        "--cascade",
+        action="store_true",
+        help="the server runs a different, larger model (axonmesh serve --escalate-to); "
+        "stops the handshake demanding identical weights",
+    )
+    p_edge.add_argument(
+        "--statistic",
+        default="min",
+        choices=["min", "mean", "q25"],
+        help="how a frame's detections become one confidence; min escalates almost "
+        "everything on crowded scenes (see docs/cascade.md)",
+    )
     p_edge.set_defaults(func=_cmd_edge)
 
     return parser

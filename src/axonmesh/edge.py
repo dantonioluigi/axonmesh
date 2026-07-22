@@ -19,12 +19,20 @@ import numpy as np
 import torch.nn as nn
 
 from .bottleneck import Bottleneck
+from .cascade import FrameConfidence, min_confidence
 from .measure import jpeg_nbytes, to_input_tensor
-from .policy import AdaptivePolicy, Detection, Mode, deserialize_detections, serialize_detections
+from .policy import (
+    AdaptivePolicy,
+    Detection,
+    Mode,
+    deserialize_detections,
+    serialize_detections,
+)
 from .protocol import (
     Handshake,
     Kind,
     ProtocolError,
+    Role,
     module_fingerprint,
     pack_tensors,
     recv_message,
@@ -48,7 +56,9 @@ class EdgeClient:
         axis: int | None = None,
         compress: bool = True,
         timeout: float = 30.0,
+        role: Role = Role.SPLIT,
     ) -> None:
+        self.role = role
         self.runner = SplitRunner(det_model, cut=cut)
         self.bottleneck = bottleneck
         self.imgsz = imgsz
@@ -60,6 +70,7 @@ class EdgeClient:
             bottleneck=module_fingerprint(bottleneck) if bottleneck else None,
             cut=self.runner.cut,
             imgsz=imgsz,
+            role=role.value,
         )
         send_message(self._sock, Kind.HELLO, hello.to_bytes())
         kind, _, payload = recv_message(self._sock)
@@ -122,22 +133,35 @@ def run_edge(
     policy: AdaptivePolicy,
     client: EdgeClient,
     quality: int = 85,
+    frame_confidence: FrameConfidence = min_confidence,
 ) -> list[FrameReport]:
-    """Drive frames through the policy against a live server; report per frame."""
+    """Drive frames through the policy against a live server; report per frame.
+
+    ``frame_confidence`` reduces a frame's detections to the one number the
+    policy thresholds. The default — the least confident detection — suits a
+    scene holding a few known objects; on a crowded one it is near-constant and
+    escalates everything, which is measured in ``docs/cascade.md``.
+    """
     reports = []
     for frame_id, (name, image) in enumerate(frames):
         detections = infer(image)
-        decision = policy.decide(detections)
-        if decision.mode is Mode.DETECTIONS:
+        decision = policy.decide_confidence(frame_confidence(detections))
+        mode = decision.mode
+        if mode is Mode.FEATURES and client.role is Role.CASCADE:
+            # A cascade's cloud runs a *different* model, so it cannot consume
+            # this one's activations — shipping them would be answered by the
+            # wrong half and cost more than the frame. Escalate as a frame.
+            mode = Mode.FRAME
+        if mode is Mode.DETECTIONS:
             nbytes = client.send_detections(detections, frame_id)
-        elif decision.mode is Mode.FEATURES:
+        elif mode is Mode.FEATURES:
             _, nbytes = client.infer_features(image, frame_id)
         else:
             _, nbytes = client.infer_frame(image, frame_id, quality)
         reports.append(
             FrameReport(
                 name=name,
-                mode=decision.mode,
+                mode=mode,
                 nbytes=nbytes,
                 jpeg_bytes=jpeg_nbytes(image, quality),
                 frame_conf=decision.frame_conf,

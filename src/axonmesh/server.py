@@ -25,6 +25,7 @@ from typing import Any
 
 import cv2
 import numpy as np
+import torch
 import torch.nn as nn
 
 from .bottleneck import Bottleneck
@@ -35,6 +36,7 @@ from .protocol import (
     Handshake,
     Kind,
     ProtocolError,
+    Role,
     module_fingerprint,
     recv_message,
     send_message,
@@ -140,6 +142,7 @@ class CloudServer:
         retrain_dir: str | Path | None = None,
         host: str = "0.0.0.0",
         port: int = 9095,
+        escalate_to: nn.Module | None = None,
     ) -> None:
         self.runner = SplitRunner(det_model, cut=cut)
         self.bottleneck = bottleneck
@@ -148,11 +151,16 @@ class CloudServer:
         self.retrain_dir = Path(retrain_dir) if retrain_dir else None
         if self.retrain_dir:
             self.retrain_dir.mkdir(parents=True, exist_ok=True)
+        # A larger, independent model for escalated frames. Without one, a
+        # FRAME is answered by re-running the same detector the edge already
+        # ran, which spends the bandwidth and learns nothing new.
+        self.escalate_to = escalate_to.eval() if escalate_to is not None else None
         self.handshake = Handshake(
             model=module_fingerprint(det_model),
             bottleneck=module_fingerprint(bottleneck) if bottleneck else None,
             cut=self.runner.cut,
             imgsz=imgsz,
+            role=Role.CASCADE.value if escalate_to is not None else Role.SPLIT.value,
         )
         self.metrics = Metrics()
         self._stop = threading.Event()
@@ -212,6 +220,13 @@ class CloudServer:
     def _handle_frame(self, conn, kind: Kind, frame_id: int, payload: bytes) -> None:
         started = time.perf_counter()
         if kind is Kind.FEATURES:
+            if self.escalate_to is not None:
+                # Answering would run the *split* half of the small model and
+                # look like a successful escalation while escalating nothing.
+                raise ProtocolError(
+                    "this server is a cascade: escalated frames must arrive as FRAME, "
+                    "because the escalation model cannot consume another model's features"
+                )
             wire = unpack_tensors(payload)
             if self.bottleneck is not None:
                 wire = self.bottleneck.decode(wire)
@@ -222,7 +237,12 @@ class CloudServer:
             if image is None:
                 raise ProtocolError("FRAME payload is not a decodable image")
             x = to_input_tensor(image, self.imgsz)
-            result = self.postprocess(self.runner.cloud(self.runner.edge(x)))
+            if self.escalate_to is not None:
+                with torch.no_grad():
+                    raw = self.escalate_to(x)
+            else:
+                raw = self.runner.cloud(self.runner.edge(x))
+            result = self.postprocess(raw)
             self._enqueue_retrain(frame_id, payload)
             send_message(conn, Kind.RESULT, result, frame_id)
         elif kind is Kind.DETECTIONS:

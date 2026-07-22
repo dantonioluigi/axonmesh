@@ -1,4 +1,4 @@
-"""Wire protocol v1 for the edge→cloud link (task-agnostic framing).
+"""Wire protocol v2 for the edge→cloud link (task-agnostic framing).
 
 Framing, little-endian: magic ``YSP``, version u8, kind u8, frame id u64,
 payload length u32, payload. ``FEATURES`` carries quantised tensors keyed by
@@ -7,10 +7,12 @@ bytes — the built-in detection codec is just the default, the protocol itself
 does not know what a detection is. That is the seam that keeps the wire usable
 for other tasks and architectures.
 
-The HELLO/ACK handshake exchanges model and bottleneck fingerprints plus the
-cut point. The silent nightmare of split computing is two halves running
-different weights and producing confidently wrong results: fingerprints turn
-that into a loud connect-time failure.
+The HELLO/ACK handshake exchanges model and bottleneck fingerprints, the cut
+point, and the *role* the two ends are in. The silent nightmare of split
+computing is two halves running different weights and producing confidently
+wrong results: under ``Role.SPLIT`` the fingerprints turn that into a loud
+connect-time failure. Under ``Role.CASCADE`` the two models are meant to
+differ, and only the role, protocol and image size have to agree.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ import json
 import struct
 import zlib
 from dataclasses import asdict, dataclass
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 import torch
 import torch.nn as nn
@@ -28,7 +30,10 @@ import torch.nn as nn
 from .quantize import QuantizedTensor, dequantize, quantize
 
 MAGIC = b"YSP"
-PROTOCOL_VERSION = 1
+#: Bumped to 2 when the handshake gained ``role``: a v1 peer sends no role and
+#: a v1 server would ignore one, so the two would agree to run a cascade as if
+#: it were a split and reject each other's weights. Cheaper to fail at connect.
+PROTOCOL_VERSION = 2
 #: Sanity cap on a single payload (a fp32 backbone pyramid is ~17 MB at 640).
 MAX_PAYLOAD = 1 << 29
 #: Cap on the *decompressed* tensor bytes in one FEATURES frame, summed over
@@ -188,15 +193,31 @@ def module_fingerprint(module: nn.Module) -> str:
     return digest.hexdigest()[:16]
 
 
+class Role(str, Enum):
+    """What relationship the two ends are in — which decides what must match.
+
+    ``SPLIT`` is two halves of one network: identical weights are mandatory,
+    because halves on different weights produce confidently wrong output and
+    nothing else would catch it. ``CASCADE`` is two *independent* models, a
+    small one on the edge and a larger one consulted when it is unsure —
+    there, differing weights are the entire point, and enforcing a match would
+    reject the working configuration.
+    """
+
+    SPLIT = "split"
+    CASCADE = "cascade"
+
+
 @dataclass(frozen=True)
 class Handshake:
-    """What both halves must agree on before any frame flows."""
+    """What both ends must agree on before any frame flows."""
 
     model: str
     bottleneck: str | None
     cut: int
     imgsz: int
     protocol: int = PROTOCOL_VERSION
+    role: str = Role.SPLIT.value
 
     def to_bytes(self) -> bytes:
         return json.dumps(asdict(self)).encode()
@@ -221,9 +242,17 @@ class Handshake:
             raise ProtocolError(f"handshake fields do not match the protocol: {err}") from err
 
     def mismatches(self, other: Handshake) -> list[str]:
-        """Field names on which the two sides disagree (empty = compatible)."""
-        return [
-            field
-            for field in ("protocol", "model", "bottleneck", "cut", "imgsz")
-            if getattr(self, field) != getattr(other, field)
-        ]
+        """Field names on which the two sides disagree (empty = compatible).
+
+        Which fields are checked depends on the role. Under ``CASCADE`` the
+        weights, the cut and the bottleneck are all expected to differ — the
+        cloud runs a different and larger model, and there is no split — so
+        only the protocol, the role itself and the image size are compared.
+        Comparing weights there would reject every working deployment.
+        """
+        if self.role != other.role:
+            return ["role"]
+        checked = ("protocol", "role", "imgsz")
+        if self.role == Role.SPLIT.value:
+            checked += ("model", "bottleneck", "cut")
+        return [field for field in checked if getattr(self, field) != getattr(other, field)]

@@ -11,6 +11,7 @@ from axonmesh.protocol import (
     MAGIC,
     MAX_PAYLOAD,
     MAX_TENSOR_BYTES,
+    PROTOCOL_VERSION,
     Handshake,
     Kind,
     ProtocolError,
@@ -147,7 +148,7 @@ def test_a_compression_bomb_is_refused_not_allocated():
 
 
 def test_unknown_message_kind_is_a_protocol_error():
-    frame = struct.pack("<3sBBQI", MAGIC, 1, 99, 0, 0)
+    frame = struct.pack("<3sBBQI", MAGIC, PROTOCOL_VERSION, 99, 0, 0)
     with pytest.raises(ProtocolError, match="unknown message kind 99"):
         recv_message(_Replay(frame))
 
