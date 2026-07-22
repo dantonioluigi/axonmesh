@@ -4,16 +4,33 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 
-**Decide where a vision model should run — on the device, in the cloud, or
-split between them — and prove the answer in bytes and mAP before deploying
-it.** Then deploy it: wire protocol, cloud service, Helm chart, Kubernetes
-operator.
+**Every inference stack answers "how fast can we serve this frame".
+axonmesh answers "should this frame be sent at all" — and proves it in bytes
+and mAP before you deploy.**
 
-Every configuration here is priced on **both axes at once**. That sounds
-obvious and is the whole difference: measuring bandwidth against one baseline
-and accuracy against another is how a design that loses looks like one that
-wins. Running that discipline on this project's own premise is what produced
-the two results below — one negative, one not.
+Serving frameworks begin where the input has already arrived. That is the
+expensive assumption: for a fleet of cameras, most of the cost and most of the
+latency is in the frames that travelled, and most of them did not need to.
+axonmesh decides which ones do — on the device, in the cluster, or split
+between them — prices each choice on **both axes at once**, and then runs the
+answer.
+
+Both axes at once sounds obvious and is the whole difference: pricing bandwidth
+against one baseline and accuracy against another is how a design that loses
+looks like one that wins. Applying that to this project's own founding premise
+is what produced the two results below, one of which refutes it.
+
+### Why not two Deployments and a gRPC call?
+
+That gives you transport, and transport was never the hard part. It does not
+tell you **where to cut** (a neck consumes several backbone taps; the naive
+slice silently drops tensors), **what the cut costs in accuracy** (measured
+here against the same baseline as the bytes), **whether to split at all** (on
+public weights, measured: often no), or **which frames to send** (the routing
+threshold is a detector score, which is not a probability — `calibrate`
+measures it instead of guessing).
+
+You would find all of that out in production. This finds it out first.
 
 ### What it is for
 
@@ -27,6 +44,21 @@ the two results below — one negative, one not.
 | which codec size is worth it? | `axonmesh sweep` | bytes vs induced output error, Pareto-marked |
 | the link quality moves — now what? | `axonmesh replan` | cut re-selection over a bandwidth trace, with hysteresis |
 | now run it | `axonmesh serve` · `edge` | two processes, one TCP link, Prometheus metrics |
+
+### Where it sits next to the tools you already run
+
+axonmesh is not another serving runtime, and it does not replace one. It
+answers the question that comes *before* serving.
+
+| | what it does | what it takes as given |
+|---|---|---|
+| KServe · Triton · BentoML | serve a model behind an endpoint, scale it, version it | the input already arrived at the server |
+| Ray Serve | compose and scale Python inference across a cluster | you decided what runs where |
+| vLLM · SGLang · TensorRT-LLM | make one model fast on the accelerators it is given | the model is resident and the work is in the cluster |
+| **axonmesh** | **decide what crosses the wire and where the work happens, priced in bytes and accuracy — then run it** | **devices outside the cluster produce the input** |
+
+Put a cascade behind KServe and both are doing their job: KServe serves the
+large model, axonmesh decides which frames ever reach it.
 
 ### The two findings that shaped it
 
@@ -61,14 +93,28 @@ axonmesh edge --model yolo11n.pt --images ./frames \
 
 ```mermaid
 flowchart LR
-    A[camera frame] --> B[edge model]
-    B --> C{confident?}
-    C -- yes --> D["detections — 11 bytes each"]
-    C -- no --> E[escalate the frame]
-    E --> F[larger cloud model]
+    A[camera frame] --> B[small model<br/>on the device]
+    B --> C{"would the cloud<br/>disagree?"}
+    C -- "no · 53% of frames" --> D["11 bytes per detection<br/>never leaves as a picture"]
+    C -- "yes · 47%" --> E[frame escalates]
+    E --> F[large model<br/>in the cluster]
     D --> G[result]
     F --> G
 ```
+
+**One detector. Two machines. Half the bandwidth, 98% of the accuracy, and the
+application never changed.** Every number in that sentence is one run —
+coco128 at 320px, `conf_high=0.6`: 53% of frames answered on the device, 5.43
+against 11.16 KB per frame, mAP50-95 0.440 against 0.448. And the threshold is
+not a guess: `axonmesh calibrate` picks it from unlabelled footage shot by the
+camera that will be running.
+
+Kubernetes is *a* backend, not the centre: the library, the measurement
+commands and the wire protocol have no dependency on it. `serve` and `edge` are
+two processes that will run on a laptop, a Jetson, docker-compose or systemd.
+The operator and the Helm charts exist so that a cluster deployment is one
+resource instead of three manifests — they are the last chapter, not the
+premise.
 
 ## Why it is not a `model[:k]` slice
 
