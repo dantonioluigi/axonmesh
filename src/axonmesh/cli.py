@@ -242,6 +242,62 @@ def _cmd_allocate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_cascade(args: argparse.Namespace) -> int:  # pragma: no cover - needs a dataset
+    from ultralytics import YOLO
+
+    from .cascade import (
+        Cascade,
+        cascade_inference,
+        mean_confidence,
+        min_confidence,
+        quantile_confidence,
+    )
+    from .policy import AdaptivePolicy, ConfidenceEMADrift, Mode
+
+    statistics = {"min": min_confidence, "mean": mean_confidence, "q25": quantile_confidence(0.25)}
+    host = YOLO(args.cloud)
+    cascade = Cascade(
+        edge=_load_model(args.edge),
+        cloud=_load_model(args.cloud),
+        policy=AdaptivePolicy(
+            conf_high=args.conf_high,
+            conf_low=args.conf_low,
+            drift=ConfidenceEMADrift(warmup=10**9) if args.no_drift else None,
+        ),
+        imgsz=args.imgsz,
+        jpeg_quality=args.jpeg_quality,
+        frame_confidence=statistics[args.statistic],
+    )
+    with cascade_inference(host.model, cascade):
+        result = host.val(
+            data=args.data, imgsz=args.imgsz, device=args.device, verbose=False, rect=False
+        )
+
+    modes = {mode.value: cascade.stats.modes.count(mode) for mode in Mode}
+    report = {
+        "edge": args.edge,
+        "cloud": args.cloud,
+        "statistic": args.statistic,
+        "conf_high": args.conf_high,
+        "map50_95": float(result.box.map),
+        "map50": float(result.box.map50),
+        "mean_bytes": cascade.stats.mean_bytes,
+        "escalation_rate": cascade.stats.escalation_rate,
+        "frames": cascade.stats.frames,
+        "modes": modes,
+    }
+    print(json.dumps(report, indent=2))
+    print(
+        f"\ncascade: {cascade.stats.mean_bytes / 1024:.3f} KB/frame, "
+        f"mAP50-95 {float(result.box.map):.3f}, "
+        f"escalated {cascade.stats.escalation_rate:.0%} of {cascade.stats.frames} frames"
+    )
+    print("compare against sending every frame: axonmesh evaluate --model <cloud> --data <yaml>")
+    if args.json:
+        Path(args.json).write_text(json.dumps(report, indent=2))
+    return 0
+
+
 def _cmd_stream(args: argparse.Namespace) -> int:
     from .policy import AdaptivePolicy, ConfidenceEMADrift
     from .split import SplitRunner
@@ -633,6 +689,29 @@ def build_parser() -> argparse.ArgumentParser:
     p_alloc.add_argument("--device", default="cpu", help="cpu, cuda, ...")
     p_alloc.add_argument("--json", default=None, help="write the proposal here")
     p_alloc.set_defaults(func=_cmd_allocate)
+
+    p_cascade = sub.add_parser(
+        "cascade", help="price edge-first inference: bytes and mAP on one dataset"
+    )
+    p_cascade.add_argument("--edge", required=True, help="small model that runs on the device")
+    p_cascade.add_argument("--cloud", required=True, help="large model consulted on escalation")
+    p_cascade.add_argument("--data", required=True, help="ultralytics dataset YAML")
+    p_cascade.add_argument("--imgsz", type=int, default=640, help="inference image size")
+    p_cascade.add_argument(
+        "--statistic",
+        default="mean",
+        choices=["min", "mean", "q25"],
+        help="how a frame's detections become one confidence; min is fragile on crowded scenes",
+    )
+    p_cascade.add_argument("--conf-high", type=float, default=0.6, help="answer locally above this")
+    p_cascade.add_argument("--conf-low", type=float, default=0.4)
+    p_cascade.add_argument(
+        "--jpeg-quality", type=int, default=50, help="quality of escalated frames"
+    )
+    p_cascade.add_argument("--no-drift", action="store_true", help="measure routing alone")
+    p_cascade.add_argument("--device", default="cpu", help="cpu, 0, ...")
+    p_cascade.add_argument("--json", default=None, help="write the report here")
+    p_cascade.set_defaults(func=_cmd_cascade)
 
     p_stream = sub.add_parser("stream", help="simulate the adaptive edge->cloud stream")
     common(p_stream)

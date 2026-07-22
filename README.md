@@ -325,6 +325,25 @@ The full reading — including the epochs, data volume, latent width and bit
 allocation that were tried and quantified — is in
 [docs/validation.md](docs/validation.md).
 
+**What does win on bandwidth is not sending anything.** `axonmesh cascade`
+runs a small model on the device and consults the cloud only for the frames it
+is unsure about; a confident frame ships its detections, eleven bytes each.
+Against the honest alternative — keep sending every frame, just send a worse
+one — the cascade returns **1.5x to 8.6x the mAP at matched bytes**, and its
+cheapest operating point is **38 bytes per frame for 86% of the cloud's
+accuracy**:
+
+| KB/frame | cascade | JPEG-quality-only |
+|---:|---:|---:|
+| 0.04 | **0.385** | — |
+| ~3.2 | **0.412** | 0.048 |
+| ~5.0 | **0.440** | 0.152 |
+| ~11.2 | 0.448 | 0.448 |
+
+The edge answers easy frames on the *original* image; turning the JPEG quality
+down degrades every frame, including the ones that needed nothing. Details,
+caveats and the threshold sweep: [docs/cascade.md](docs/cascade.md).
+
 Latency numbers measured off-device are not representative; re-measure on the
 Jetson before drawing conclusions about end-to-end delay.
 

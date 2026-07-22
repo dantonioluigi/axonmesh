@@ -115,7 +115,18 @@ class AdaptivePolicy:
         self.drift = drift if drift is not None else ConfidenceEMADrift()
 
     def decide(self, detections: list[Detection]) -> Decision:
-        frame_conf = min((d.conf for d in detections), default=None)
+        """Route a frame by its least confident detection."""
+        return self.decide_confidence(min((d.conf for d in detections), default=None))
+
+    def decide_confidence(self, frame_conf: float | None) -> Decision:
+        """Route a frame by a confidence already summarised from its detections.
+
+        How to reduce a frame's detections to one number is scene-dependent —
+        the minimum suits a station with a few known objects and is close to a
+        constant on a crowded one, where some box is always marginal. Callers
+        that know their scenes pick the statistic (see
+        :mod:`axonmesh.cascade`); the thresholds live here either way.
+        """
         drifting = self.drift.update(frame_conf)
         if drifting:
             return Decision(Mode.FRAME, frame_conf, True, True, "drift detected")
