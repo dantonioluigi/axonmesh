@@ -327,6 +327,22 @@ spec:
   cloud: { image: ghcr.io/you/axonmesh-cloud:0.5.0, replicas: 2 }
 ```
 
+Declaring `escalateTo` makes it a **cascade** instead — the operator writes
+`role=cascade` into the edge ConfigMap and passes `--escalate-to` to the cloud,
+so the winning configuration is as declarative as the split one
+([operator/examples/cascade.yaml](operator/examples/cascade.yaml)):
+
+```yaml
+spec:
+  model: { url: https://store/yolo11n.pt, sha256: "..." }
+  escalateTo: { url: https://store/yolo11m.pt, sha256: "..." }
+  policy: { confHigh: 0.6, statistic: mean }   # from `axonmesh calibrate`
+```
+
+Set `sha256` on every download. `torch.load` unpickles the checkpoint, so the
+URL is code that runs in the pod, and the initContainer refuses a digest
+mismatch rather than starting on a file nobody vouched for.
+
 `cut.mode: fixed` pins a layer; `auto` writes the budget into the edge
 ConfigMap for the edge to plan against live (see live re-planning). Install the
 CRD + RBAC from `operator/manifests/`, run the operator (image in
@@ -455,9 +471,10 @@ was *not* met: [docs/cascade.md](docs/cascade.md).
 - [x] Edge-first cascade, offline and live: 1.5–8.6x the mAP of the obvious
       alternative at matched bytes, running over the wire protocol with role
       negotiation ([docs/cascade.md](docs/cascade.md))
-- [ ] Cascade on the operator: a `SplitInference` role that reconciles an
-      escalation model, so the winning configuration is declarative like the
-      split one already is
+- [x] Cascade on the operator: `spec.escalateTo` reconciles the escalation
+      model and derives the role, so the winning configuration is declarative;
+      downloads are digest-verified and the URL cannot smuggle shell into the
+      initContainer
 - [x] Label-free threshold calibration (`axonmesh calibrate`): measure what
       each threshold does to agreement and bytes on unlabelled deployment
       footage, and pick the one that meets a budget. Reproduces the labelled
