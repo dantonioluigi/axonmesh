@@ -44,11 +44,32 @@ spec:
                     fingerprint:
                       type: string
                       description: Optional weight fingerprint, echoed to the edge config.
+                    sha256:
+                      type: string
+                      description: >-
+                        Expected digest of the download. A checkpoint is
+                        unpickled on load, so an unverified URL is code
+                        execution in the pod.
                 bottleneck:
                   type: object
                   properties:
                     url: { type: string }
                     fingerprint: { type: string }
+                    sha256:
+                      type: string
+                      description: >-
+                        Expected digest of the download. A checkpoint is
+                        unpickled on load, so an unverified URL is code
+                        execution in the pod.
+                escalateTo:
+                  type: object
+                  description: >-
+                    Larger model answering escalated frames. Declaring it makes
+                    this a cascade: the edge and cloud run different weights on
+                    purpose, and the handshake stops requiring them to match.
+                  properties:
+                    url: { type: string }
+                    sha256: { type: string }
                 cut:
                   type: object
                   properties:
@@ -74,6 +95,15 @@ spec:
                     confHigh: { type: number, default: 0.75 }
                     confLow: { type: number, default: 0.4 }
                     driftThreshold: { type: number, default: 0.5 }
+                    statistic:
+                      type: string
+                      enum: [min, mean, q25]
+                      default: min
+                      description: >-
+                        How a frame's detections become the one confidence the
+                        thresholds are applied to. min escalates if any object
+                        is doubtful, which is near-constant on crowded scenes;
+                        run `axonmesh calibrate` rather than guessing.
                 cloud:
                   type: object
                   required: [image]

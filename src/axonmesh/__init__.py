@@ -8,6 +8,12 @@ from .adapters import (
     register_adapter,
     registered_adapters,
 )
+from .allocate import (
+    LevelSensitivity,
+    allocation_cost,
+    level_sensitivity,
+    propose_allocation,
+)
 from .benchmark import (
     BenchmarkResult,
     StageTimings,
@@ -21,6 +27,15 @@ from .bottleneck import (
     LevelCodec,
     load_bottleneck,
     save_bottleneck,
+)
+from .cascade import (
+    Cascade,
+    CascadeResult,
+    CascadeStats,
+    cascade_inference,
+    mean_confidence,
+    min_confidence,
+    quantile_confidence,
 )
 from .edge import EdgeClient, run_edge
 from .evaluate import MapComparison, compare_map, split_inference
@@ -63,7 +78,7 @@ from .topology import (
     probe_output_shapes,
     wire_indices,
 )
-from .train import TrainResult, train_bottleneck
+from .train import TrainResult, output_error, train_bottleneck
 from .transport import Int8Transport, RawTransport
 
 __version__ = "0.8.0"
@@ -74,6 +89,9 @@ __all__ = [
     "BenchmarkResult",
     "Bottleneck",
     "BottleneckTransport",
+    "Cascade",
+    "CascadeResult",
+    "CascadeStats",
     "CloudServer",
     "ConfidenceEMADrift",
     "CutOption",
@@ -86,6 +104,7 @@ __all__ = [
     "Kind",
     "LayerInfo",
     "LevelCodec",
+    "LevelSensitivity",
     "MapComparison",
     "Metrics",
     "Mode",
@@ -107,21 +126,29 @@ __all__ = [
     "WireStats",
     "__version__",
     "adapter_for",
+    "allocation_cost",
     "backbone_cut",
     "benchmark_directory",
     "benchmark_split",
     "budget_bytes_per_frame",
     "build_graph",
+    "cascade_inference",
     "compare_map",
     "cpu_load",
     "dequantize",
     "deserialize_detections",
     "enumerate_cuts",
+    "level_sensitivity",
     "load_bottleneck",
+    "mean_confidence",
+    "min_confidence",
     "module_fingerprint",
+    "output_error",
     "pack_tensors",
     "plan_cut",
     "probe_output_shapes",
+    "propose_allocation",
+    "quantile_confidence",
     "quantize",
     "read_jetson_power",
     "register_adapter",

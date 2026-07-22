@@ -298,6 +298,63 @@ def _cmd_cascade(args: argparse.Namespace) -> int:  # pragma: no cover - needs a
     return 0
 
 
+def _cmd_calibrate(args: argparse.Namespace) -> int:  # pragma: no cover - needs two models
+    from .calibrate import (
+        agreement_bytes_pareto,
+        choose_threshold,
+        probe_frames,
+        sweep_thresholds,
+        to_markdown,
+    )
+    from .cascade import mean_confidence, min_confidence, quantile_confidence
+    from .train import _image_paths
+
+    statistics = {"min": min_confidence, "mean": mean_confidence, "q25": quantile_confidence(0.25)}
+    probes = probe_frames(
+        _load_model(args.edge),
+        _load_model(args.cloud),
+        _image_paths(args.images, args.limit),
+        imgsz=args.imgsz,
+        jpeg_quality=args.jpeg_quality,
+        frame_confidence=statistics[args.statistic],
+        device=args.device,
+    )
+    points = sweep_thresholds(probes, steps=args.steps)
+    front = {point.threshold for point in agreement_bytes_pareto(points)}
+
+    print(f"{len(probes)} frames, statistic={args.statistic}, no labels used\n")
+    print(to_markdown(points))
+    print("\nagreement = share of the answer an always-escalate deployment would have given")
+
+    if args.max_kb is not None or args.min_agreement is not None:
+        chosen = choose_threshold(
+            points,
+            max_bytes=args.max_kb * 1024 if args.max_kb is not None else None,
+            min_agreement=args.min_agreement,
+        )
+        print(
+            f"\nchosen --conf-high {chosen.threshold:.2f}  "
+            f"({chosen.mean_bytes / 1024:.3f} KB/frame, agreement {chosen.agreement:.3f}, "
+            f"escalates {chosen.escalation_rate:.0%})"
+        )
+        print(
+            f"axonmesh edge --model {args.edge} --cascade --statistic {args.statistic} "
+            f"--conf-high {chosen.threshold:.2f} ..."
+        )
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(
+                {
+                    "frames": len(probes),
+                    "statistic": args.statistic,
+                    "points": [p.to_dict() | {"pareto": p.threshold in front} for p in points],
+                },
+                indent=2,
+            )
+        )
+    return 0
+
+
 def _cmd_stream(args: argparse.Namespace) -> int:
     from .policy import AdaptivePolicy, ConfidenceEMADrift
     from .split import SplitRunner
@@ -721,6 +778,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_cascade.add_argument("--device", default="cpu", help="cpu, 0, ...")
     p_cascade.add_argument("--json", default=None, help="write the report here")
     p_cascade.set_defaults(func=_cmd_cascade)
+
+    p_calib = sub.add_parser(
+        "calibrate", help="pick the routing threshold from measurement, without labels"
+    )
+    p_calib.add_argument("--edge", required=True, help="small model that runs on the device")
+    p_calib.add_argument("--cloud", required=True, help="large model consulted on escalation")
+    p_calib.add_argument("--images", required=True, help="frames from the deployment")
+    p_calib.add_argument("--imgsz", type=int, default=640, help="inference image size")
+    p_calib.add_argument("--limit", type=int, default=None, help="max calibration frames")
+    p_calib.add_argument("--statistic", default="mean", choices=["min", "mean", "q25"])
+    p_calib.add_argument("--jpeg-quality", type=int, default=50)
+    p_calib.add_argument("--steps", type=int, default=21, help="thresholds to try between 0 and 1")
+    p_calib.add_argument("--max-kb", type=float, default=None, help="bandwidth ceiling per frame")
+    p_calib.add_argument(
+        "--min-agreement", type=float, default=None, help="floor on agreement with the cloud"
+    )
+    p_calib.add_argument("--device", default="cpu", help="cpu, cuda, ...")
+    p_calib.add_argument("--json", default=None, help="write the sweep here")
+    p_calib.set_defaults(func=_cmd_calibrate)
 
     p_stream = sub.add_parser("stream", help="simulate the adaptive edge->cloud stream")
     common(p_stream)

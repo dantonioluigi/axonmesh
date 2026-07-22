@@ -11,6 +11,7 @@ from splitinference.render import (
     render_deployment,
     render_service,
     resolve_cut,
+    resolve_role,
 )
 
 BASE = {
@@ -121,3 +122,64 @@ def test_owner_reference_shape():
     ref = owner_reference("det", "u1")
     assert ref["kind"] == "SplitInference"
     assert ref["blockOwnerDeletion"] is True
+
+
+def init_script(deployment) -> str:
+    """The shell the initContainer will actually run."""
+    return deployment["spec"]["template"]["spec"]["initContainers"][0]["command"][-1]
+
+
+def test_a_spec_without_an_escalation_model_is_a_split():
+    assert resolve_role({"model": {"url": "https://x/m.pt"}}) == "split"
+
+
+def test_declaring_an_escalation_model_makes_it_a_cascade():
+    """The role is derived, not declared: a CR cannot say one and configure the
+    other, and the edge needs it to know what the handshake will enforce."""
+    spec = {"model": {"url": "https://x/m.pt"}, "escalateTo": {"url": "https://x/big.pt"}}
+    assert resolve_role(spec) == "cascade"
+
+
+def test_the_edge_config_carries_the_role_and_the_statistic():
+    spec = {
+        "model": {"url": "https://x/m.pt"},
+        "escalateTo": {"url": "https://x/big.pt"},
+        "policy": {"statistic": "mean"},
+    }
+    data = render_configmap("det", spec)["data"]
+    assert data["role"] == "cascade"
+    assert data["statistic"] == "mean"
+
+
+def test_the_cloud_downloads_and_serves_the_escalation_model():
+    spec = {
+        "model": {"url": "https://x/m.pt"},
+        "escalateTo": {"url": "https://x/big.pt"},
+        "cloud": {"image": "ghcr.io/you/cloud:1"},
+    }
+    deployment = render_deployment("det", spec)
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    assert "--escalate-to=/models/escalate.pt" in container["args"]
+    assert "https://x/big.pt" in init_script(deployment)
+
+
+def test_a_declared_digest_is_verified_before_the_pod_starts():
+    spec = {
+        "model": {"url": "https://x/m.pt", "sha256": "abc123"},
+        "cloud": {"image": "ghcr.io/you/cloud:1"},
+    }
+    script = init_script(render_deployment("det", spec))
+    assert "sha256sum -c -" in script
+    assert "abc123  /models/model.pt" in script
+    assert "set -eu" in script  # a failed check must stop the pod, not be logged
+
+
+def test_a_url_cannot_smuggle_shell_into_the_init_container():
+    """The URL comes from a custom resource, and the init container is a shell."""
+    spec = {
+        "model": {"url": "https://x/m.pt; touch /pwned"},
+        "cloud": {"image": "ghcr.io/you/cloud:1"},
+    }
+    script = init_script(render_deployment("det", spec))
+    assert "; touch /pwned" not in script.replace("'https://x/m.pt; touch /pwned'", "")
+    assert "'https://x/m.pt; touch /pwned'" in script  # quoted, so it stays one argument

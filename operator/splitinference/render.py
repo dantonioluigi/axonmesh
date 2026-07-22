@@ -19,6 +19,7 @@ spec change and diffing against the live objects is the whole reconcile.
 
 from __future__ import annotations
 
+import shlex
 from typing import Any
 
 API_GROUP = "axonmesh.dev"
@@ -70,12 +71,25 @@ def resolve_cut(spec: dict[str, Any]) -> dict[str, Any]:
     raise SpecError(f"unknown cut.mode {mode!r} (want 'fixed' or 'auto')")
 
 
+def resolve_role(spec: dict[str, Any]) -> str:
+    """``cascade`` when an escalation model is declared, ``split`` otherwise.
+
+    The two are not interchangeable and the edge has to know which it is in:
+    under split the handshake demands identical weights, under cascade it
+    demands they differ. Deriving the role from the presence of
+    ``spec.escalateTo`` keeps a CR from declaring one and configuring the other.
+    """
+    return "cascade" if spec.get("escalateTo", {}).get("url") else "split"
+
+
 def render_configmap(name: str, spec: dict[str, Any], owner: dict | None = None) -> dict[str, Any]:
-    """The edge-facing config: cut decision + policy thresholds."""
+    """The edge-facing config: cut decision, role and policy thresholds."""
     policy = spec.get("policy", {})
     data = resolve_cut(spec) | {
+        "role": resolve_role(spec),
         "confHigh": float(policy.get("confHigh", 0.75)),
         "confLow": float(policy.get("confLow", 0.4)),
+        "statistic": policy.get("statistic", "min"),
         "driftThreshold": float(policy.get("driftThreshold", 0.5)),
         "modelFingerprint": spec.get("model", {}).get("fingerprint", ""),
         "bottleneckFingerprint": spec.get("bottleneck", {}).get("fingerprint", ""),
@@ -90,6 +104,22 @@ def render_configmap(name: str, spec: dict[str, Any], owner: dict | None = None)
         # Stringify: ConfigMap values are strings.
         "data": {k: str(v) for k, v in data.items()},
     }
+
+
+def _fetch(source: dict[str, Any], destination: str) -> list[str]:
+    """Shell lines that download a checkpoint and refuse to trust it blindly.
+
+    The URL is quoted because it comes from a custom resource, and a checkpoint
+    is unpickled by torch.load — whatever that URL serves is code running in the
+    pod. ``sha256`` is optional but the only thing that makes the download
+    trustworthy; the handshake fingerprint is computed after loading, far too
+    late to be a defence.
+    """
+    lines = [f"curl -fsSL -o {destination} {shlex.quote(str(source['url']))}"]
+    if source.get("sha256"):
+        expected = f"{source['sha256']}  {destination}"
+        lines.append(f"echo {shlex.quote(expected)} | sha256sum -c -")
+    return lines
 
 
 def render_deployment(name: str, spec: dict[str, Any], owner: dict | None = None) -> dict[str, Any]:
@@ -113,10 +143,15 @@ def render_deployment(name: str, spec: dict[str, Any], owner: dict | None = None
     if cut["mode"] == "fixed":
         args.append(f"--cut={cut['cut']}")
     bottleneck = spec.get("bottleneck", {})
-    init_cmd = f"curl -fsSL -o /models/model.pt {model['url']}"
+    escalate = spec.get("escalateTo", {})
+    fetches = _fetch(model, "/models/model.pt")
     if bottleneck.get("url"):
-        init_cmd += f" && curl -fsSL -o /models/bottleneck.pt {bottleneck['url']}"
+        fetches += _fetch(bottleneck, "/models/bottleneck.pt")
         args.append("--bottleneck=/models/bottleneck.pt")
+    if escalate.get("url"):
+        fetches += _fetch(escalate, "/models/escalate.pt")
+        args.append("--escalate-to=/models/escalate.pt")
+    init_cmd = "\n".join(["set -eu", *fetches])
 
     meta: dict[str, Any] = {"name": f"{name}-cloud", "labels": _labels(name)}
     if owner:

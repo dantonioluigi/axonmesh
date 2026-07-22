@@ -1,0 +1,32 @@
+# Edge-first inference, declared. The edge runs the small model and answers
+# locally when confident; the cloud holds a larger one for escalated frames.
+#
+# Declaring escalateTo is what makes this a cascade: the operator writes
+# role=cascade into the edge ConfigMap, and the handshake then expects the two
+# ends to run *different* weights instead of demanding they match.
+#
+# Pick confHigh with `axonmesh calibrate` against footage from the camera that
+# will be running — a detector's score is not a probability, so a threshold
+# guessed here does not transfer between models or scenes.
+apiVersion: axonmesh.dev/v1alpha1
+kind: SplitInference
+metadata:
+  name: detector-cascade
+spec:
+  model:
+    url: https://your-store/yolo11n.pt
+    # torch.load unpickles the checkpoint, so this URL is code that runs in the
+    # pod. Without a digest the initContainer trusts whatever answers.
+    sha256: ""
+  escalateTo:
+    url: https://your-store/yolo11m.pt
+    sha256: ""
+  policy:
+    confHigh: 0.6              # from `axonmesh calibrate --max-kb ...`
+    confLow: 0.4
+    statistic: mean            # `min` escalates nearly every crowded frame
+    driftThreshold: 0.5
+  cloud:
+    image: ghcr.io/dantonioluigi/axonmesh-cloud:0.8.0
+    replicas: 2
+    imgsz: 320

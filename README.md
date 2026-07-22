@@ -22,6 +22,7 @@ the two results below — one negative, one not.
 | does splitting cost accuracy? | `axonmesh evaluate` | baseline vs split mAP, bytes/frame |
 | where should I cut? | `axonmesh plan` · `inspect` | every cut priced against a bandwidth/FPS budget |
 | is edge-first cheaper than sending frames? | `axonmesh cascade` | mAP and bytes for both, on your data |
+| what routing threshold should I run? | `axonmesh calibrate` | the sweep, and the one that meets your budget — no labels needed |
 | what does it cost on the device? | `axonmesh benchmark` | per-stage latency, FPS, power |
 | now run it | `axonmesh serve` · `edge` | two processes, one TCP link, Prometheus metrics |
 
@@ -181,6 +182,23 @@ doubtful, which fits a station holding a few known objects and is close to a
 constant on a crowded scene — on coco128 it escalates 78% of frames for the
 same mAP `mean` gets from 68%.
 
+**Pick the threshold by measuring it, not by guessing.** A detector's score is
+not a probability: 0.6 does not mean "right six times in ten", and the mapping
+shifts between models and scenes. `calibrate` runs both models over frames from
+the deployment and asks *would the cloud have disagreed?* — which needs **no
+labels**, only footage from the camera that will be running:
+
+```bash
+axonmesh calibrate --edge yolo11n.pt --cloud yolo11m.pt \
+    --images ./footage --imgsz 320 --statistic mean --max-kb 5
+#   chosen --conf-high 0.60  (4.677 KB/frame, agreement 0.951, escalates 41%)
+```
+
+Give it a bandwidth ceiling and it returns the most faithful threshold that
+fits; give it an agreement floor and it returns the cheapest that clears it. On
+public data the label-free sweep picks the same threshold the labelled mAP
+measurement did.
+
 **5b. Simulate the adaptive stream** — the same routing offline, with the
 feature path available and hard frames enqueued for later use:
 
@@ -308,6 +326,22 @@ spec:
   cut: { mode: auto, auto: { bandwidthMbps: 50, fps: 10 } }
   cloud: { image: ghcr.io/you/axonmesh-cloud:0.5.0, replicas: 2 }
 ```
+
+Declaring `escalateTo` makes it a **cascade** instead — the operator writes
+`role=cascade` into the edge ConfigMap and passes `--escalate-to` to the cloud,
+so the winning configuration is as declarative as the split one
+([operator/examples/cascade.yaml](operator/examples/cascade.yaml)):
+
+```yaml
+spec:
+  model: { url: https://store/yolo11n.pt, sha256: "..." }
+  escalateTo: { url: https://store/yolo11m.pt, sha256: "..." }
+  policy: { confHigh: 0.6, statistic: mean }   # from `axonmesh calibrate`
+```
+
+Set `sha256` on every download. `torch.load` unpickles the checkpoint, so the
+URL is code that runs in the pod, and the initContainer refuses a digest
+mismatch rather than starting on a file nobody vouched for.
 
 `cut.mode: fixed` pins a layer; `auto` writes the budget into the edge
 ConfigMap for the edge to plan against live (see live re-planning). Install the
@@ -437,13 +471,14 @@ was *not* met: [docs/cascade.md](docs/cascade.md).
 - [x] Edge-first cascade, offline and live: 1.5–8.6x the mAP of the obvious
       alternative at matched bytes, running over the wire protocol with role
       negotiation ([docs/cascade.md](docs/cascade.md))
-- [ ] Cascade on the operator: a `SplitInference` role that reconciles an
-      escalation model, so the winning configuration is declarative like the
-      split one already is
-- [ ] Confidence calibration. The routing threshold is applied to a raw
-      detector score, which is not a probability — a miscalibrated edge either
-      escalates too much or answers when it should not, and neither is visible
-      in the current metrics
+- [x] Cascade on the operator: `spec.escalateTo` reconciles the escalation
+      model and derives the role, so the winning configuration is declarative;
+      downloads are digest-verified and the URL cannot smuggle shell into the
+      initContainer
+- [x] Label-free threshold calibration (`axonmesh calibrate`): measure what
+      each threshold does to agreement and bytes on unlabelled deployment
+      footage, and pick the one that meets a budget. Reproduces the labelled
+      choice on public data
 - [ ] Task-head plugins beyond YOLO NMS, so the cloud half serves segmentation
       and classification heads without a fork
 

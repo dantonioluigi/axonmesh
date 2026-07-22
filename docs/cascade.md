@@ -72,6 +72,56 @@ takes the statistic as a parameter (`frame_confidence`) while the thresholds
 stay in the policy: *how confident is this frame* is a question about the
 scene, not about the routing rule.
 
+## Choosing the threshold without labels
+
+`conf_high` is compared against a detector's confidence score, and that score
+is not a probability: 0.6 does not mean "right six times in ten", and the
+mapping differs between models and shifts with the scene. A threshold picked by
+intuition is a guess that does not transfer.
+
+`axonmesh calibrate` removes the need for the score to be calibrated by
+measuring what each threshold actually does. It runs both models over frames
+from the deployment and asks, per frame, *would the cloud have disagreed?* —
+which needs **no annotations at all**, only footage from the camera that will
+be running. That is the distribution the threshold has to hold on, and the one
+a site actually has.
+
+```bash
+axonmesh calibrate --edge yolo11n.pt --cloud yolo11m.pt \
+    --images ./footage --imgsz 320 --statistic mean --max-kb 5
+```
+
+| threshold | KB/frame | agreement | escalated |
+|---:|---:|---:|---:|
+| 0.30 | 0.037 | 0.767 | 0% |
+| 0.40 | 0.358 | 0.794 | 3% |
+| 0.50 | 2.158 | 0.912 | 22% |
+| **0.60** | **4.677** | **0.951** | **41%** |
+| 0.70 | 6.741 | 0.980 | 59% |
+| 0.90 | 10.486 | 1.000 | 94% |
+
+Agreement is the share of the answer an always-escalate deployment would have
+given, as symmetric F1 over IoU-matched boxes. Give it a ceiling (`--max-kb`)
+and it returns the most faithful threshold that fits; give it a floor
+(`--min-agreement`) and it returns the cheapest that clears it. A constraint
+nothing satisfies raises rather than returning the closest miss — a returned
+threshold implies its budget was met.
+
+**It reproduces the labelled answer.** On the same frames the label-free sweep
+selects 0.60, the threshold the mAP measurement above independently picked, and
+its two readings bracket it the right way:
+
+| | calibration (no labels) | mAP measurement (labelled) |
+|---|---|---|
+| threshold | 0.60 | 0.6 |
+| KB/frame | 4.68 | 5.43 |
+| escalated | 41% | 47% |
+| quality kept | 0.951 agreement | 0.982 of cloud mAP |
+
+Agreement reads slightly *below* mAP retention because it penalises every box
+difference while mAP forgives some. For a routing decision that is the right
+direction to be wrong in.
+
 ## Honest notes
 
 - **The bar set before running was not met as written.** The criterion was
