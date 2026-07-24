@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" role="img" aria-label="axonmesh decides whether a camera frame should be sent to the cluster at all: 53 percent of frames are answered on the device and only detections cross the wire, 47 percent escalate as a JPEG frame to yolo11m. 5.43 KB per frame at mAP 0.440, against 11.16 KB at 0.448 when every frame is sent.">
+<rect width="1200" height="560" fill="#ffffff"/>
+<text x="56" y="52" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="11" font-weight="600" fill="#0f6f66" text-anchor="start" letter-spacing="2.2">INFERENCE DECISION RUNTIME</text>
+<text x="56" y="94" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="38" font-weight="600" fill="#14181c" text-anchor="start" letter-spacing="-0.6">axonmesh</text>
+<text x="1144" y="94" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#4b555e" text-anchor="end">decides whether the frame should be sent at all</text>
+<line x1="56" y1="122" x2="1144" y2="122" stroke="#dde2e6" stroke-width="1" stroke-linecap="round"/>
+<rect x="56" y="156" width="236" height="154" rx="12" fill="#f5f7f8" stroke="#dde2e6" stroke-width="1"/>
+<rect x="56" y="156" width="4" height="154" rx="2" fill="#0f6f66"/>
+<text x="80" y="184" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="10" font-weight="600" fill="#79848d" text-anchor="start" letter-spacing="1.8">EDGE DEVICE</text>
+<text x="80" y="214" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="18" font-weight="500" fill="#14181c" text-anchor="start">camera frame</text>
+<rect x="80" y="232" width="104" height="28" rx="7" fill="#eceff1" stroke="#dde2e6" stroke-width="1"/>
+<text x="132" y="251" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="500" fill="#4b555e" text-anchor="middle">yolo11n</text>
+<text x="80" y="285" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#79848d" text-anchor="start">small model, run on the</text>
+<text x="80" y="301" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#79848d" text-anchor="start">original image</text>
+<line x1="292" y1="243" x2="331" y2="243" stroke="#c3cbd1" stroke-width="1.6" stroke-linecap="round"/><path d="M 338 243 L 331 238.8 L 331 247.2 Z" fill="#c3cbd1"/>
+<rect x="340" y="176" width="176" height="134" rx="12" fill="#ffffff" stroke="#14181c" stroke-width="2"/>
+<text x="428" y="219" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" fill="#14181c" text-anchor="middle">confident?</text>
+<text x="428" y="246" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="500" fill="#0f6f66" text-anchor="middle">conf ≥ 0.60</text>
+<text x="428" y="274" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#79848d" text-anchor="middle">picked by calibrate,</text>
+<text x="428" y="289" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#79848d" text-anchor="middle">from unlabelled footage</text>
+<path d="M 516 226 H 530 A 12 12 0 0 0 542 214 V 208 A 12 12 0 0 1 554 196 H 561" fill="none" stroke="#0f6f66" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M 568 196 L 561 191.8 L 561 200.2 Z" fill="#0f6f66"/>
+<rect x="568" y="156" width="576" height="82" rx="12" fill="#daece9" stroke="#0f6f66" stroke-width="1"/>
+<text x="592" y="184" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="10" font-weight="600" fill="#0f6f66" text-anchor="start" letter-spacing="1.6">ANSWERED ON DEVICE  ·  53% OF FRAMES</text>
+<text x="592" y="214" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#14181c" text-anchor="start">detections cross the wire, not pixels — about 11 bytes each</text>
+<path d="M 516 260 H 530 A 12 12 0 0 1 542 272 V 288 A 12 12 0 0 0 554 300 H 561" fill="none" stroke="#c3cbd1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5 5"/><path d="M 568 300 L 561 295.8 L 561 304.2 Z" fill="#c3cbd1"/>
+<rect x="568" y="262" width="276" height="76" rx="12" fill="#f5f7f8" stroke="#dde2e6" stroke-width="1"/>
+<text x="592" y="288" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="10" font-weight="600" fill="#79848d" text-anchor="start" letter-spacing="1.6">ESCALATED  ·  47%</text>
+<text x="592" y="316" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#4b555e" text-anchor="start">JPEG frame, 11.2 KB</text>
+<line x1="844" y1="300" x2="885" y2="300" stroke="#c3cbd1" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="5 5"/><path d="M 892 300 L 885 295.8 L 885 304.2 Z" fill="#c3cbd1"/>
+<rect x="896" y="262" width="248" height="76" rx="12" fill="#f5f7f8" stroke="#dde2e6" stroke-width="1"/>
+<text x="920" y="288" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="10" font-weight="600" fill="#79848d" text-anchor="start" letter-spacing="1.6">CLOUD SIDE</text>
+<text x="920" y="316" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#4b555e" text-anchor="start">yolo11m</text>
+<text x="568" y="366" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#79848d" text-anchor="start">same output contract on either path  ·  neither model retrained</text>
+<line x1="56" y1="396" x2="1144" y2="396" stroke="#dde2e6" stroke-width="1" stroke-linecap="round"/>
+<text x="56" y="428" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="10" font-weight="600" fill="#79848d" text-anchor="start" letter-spacing="1.8">BYTES ON THE WIRE, PER FRAME</text>
+<text x="56" y="458" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#14181c" text-anchor="start">half the bandwidth,</text>
+<text x="56" y="484" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#14181c" text-anchor="start">98% of the accuracy.</text>
+<text x="56" y="508" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#79848d" text-anchor="start">one run, coco128 at 320px, CPU</text>
+<line x1="320" y1="478" x2="1144" y2="478" stroke="#dde2e6" stroke-width="1.5" stroke-linecap="round"/>
+<line x1="472.5729496367934" y1="474" x2="472.5729496367934" y2="482" stroke="#c3cbd1" stroke-width="1" stroke-linecap="round"/>
+<line x1="764.3670816682886" y1="474" x2="764.3670816682886" y2="482" stroke="#c3cbd1" stroke-width="1" stroke-linecap="round"/>
+<line x1="1056.1612136997837" y1="474" x2="1056.1612136997837" y2="482" stroke="#c3cbd1" stroke-width="1" stroke-linecap="round"/>
+<line x1="349.95626894619886" y1="478" x2="978.7773601600569" y2="478" stroke="#0f6f66" stroke-width="3.5" stroke-linecap="round"/>
+<circle cx="350.0" cy="478" r="5.5" fill="#ffffff" stroke="#0f6f66" stroke-width="2.5"/>
+<line x1="349.95626894619886" y1="470" x2="349.95626894619886" y2="456" stroke="#0f6f66" stroke-width="1" stroke-linecap="round"/>
+<text x="341.95626894619886" y="450" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="600" fill="#0f6f66" text-anchor="start">38 B → mAP 0.385</text>
+<text x="341.95626894619886" y="432" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="9.5" font-weight="600" fill="#79848d" text-anchor="start" letter-spacing="1.4">CHEAPEST POINT</text>
+<circle cx="978.8" cy="478" r="5.5" fill="#0f6f66"/>
+<line x1="978.7773601600569" y1="470" x2="978.7773601600569" y2="456" stroke="#0f6f66" stroke-width="1" stroke-linecap="round"/>
+<text x="988.7773601600569" y="450" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="600" fill="#0f6f66" text-anchor="start">5.43 KB → mAP 0.440</text>
+<text x="988.7773601600569" y="432" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="9.5" font-weight="600" fill="#79848d" text-anchor="start" letter-spacing="1.4">CASCADE</text>
+<circle cx="1070.1" cy="478" r="5" fill="#c3cbd1"/>
+<line x1="1070.0693459925262" y1="484" x2="1070.0693459925262" y2="494" stroke="#c3cbd1" stroke-width="1" stroke-linecap="round"/>
+<text x="1144" y="512" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="500" fill="#79848d" text-anchor="end">11.16 KB → mAP 0.448</text>
+<text x="1144" y="530" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="9.5" font-weight="600" fill="#79848d" text-anchor="end" letter-spacing="1.4">SEND EVERY FRAME</text>
+</svg>

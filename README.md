@@ -1,10 +1,20 @@
-# axonmesh
+<h1 align="center">axonmesh</h1>
 
-[![CI](https://github.com/dantonioluigi/axonmesh/actions/workflows/ci.yml/badge.svg)](https://github.com/dantonioluigi/axonmesh/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
+<p align="center"><b>An inference decision runtime for edge–cloud AI.</b></p>
 
-**An inference decision runtime for edge–cloud AI.**
+<p align="center">
+  <a href="https://github.com/dantonioluigi/axonmesh/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/dantonioluigi/axonmesh/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+  <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue">
+  <img alt="Status" src="https://img.shields.io/badge/status-research%20prototype-lightgrey">
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.svg">
+    <img alt="axonmesh decides whether a camera frame should be sent to the cluster at all. A small model on the device answers 53% of frames, sending only detections — about 11 bytes each — while 47% escalate as an 11.2 KB JPEG frame to yolo11m. 5.43 KB per frame at mAP 0.440, against 11.16 KB at 0.448 when every frame is sent." src="docs/assets/hero-light.svg" width="100%">
+  </picture>
+</p>
 
 Serving systems answer *how fast can we serve this request*. axonmesh answers
 *whether the request should exist at all* — and proves the answer in bytes and
@@ -13,19 +23,7 @@ accuracy before you deploy it.
 Two Deployments and a gRPC call move tensors. axonmesh decides whether those
 tensors should be sent.
 
-```mermaid
-flowchart LR
-    A[camera frame] --> B[small model<br/>on the device]
-    B --> C{"would the cloud<br/>disagree?"}
-    C -- "no · 53% of frames" --> D["11 bytes per detection"]
-    C -- "yes · 47%" --> E[frame escalates]
-    E --> F[large model<br/>in the cluster]
-    D --> G[detections]
-    F --> G
-```
-
 **Half the bandwidth. 98% of the accuracy. Neither model retrained.**
-
 One run, one dataset: yolo11n escalating to yolo11m, coco128 at 320px,
 `conf_high=0.6`. 53% of frames answered on the device, 5.43 against 11.16 KB
 per frame, mAP50-95 0.440 against 0.448. The threshold is not a guess —
@@ -33,9 +31,16 @@ per frame, mAP50-95 0.440 against 0.448. The threshold is not a guess —
 
 ## Quick start
 
-```bash
-pip install -e .          # or: helm install axonmesh-operator deploy/helm/axonmesh-operator
+Requires Python 3.10–3.12 and PyTorch. A GPU, a Kubernetes cluster and a real
+device are all optional — every command below runs on a laptop.
 
+```bash
+git clone https://github.com/dantonioluigi/axonmesh
+cd axonmesh
+pip install -e .          # or: helm install axonmesh-operator deploy/helm/axonmesh-operator
+```
+
+```bash
 # what threshold fits a 5 KB/frame link? no labels needed
 axonmesh calibrate --edge yolo11n.pt --cloud yolo11m.pt --images ./footage --max-kb 5
 #   chosen --conf-high 0.60  (4.677 KB/frame, agreement 0.951, escalates 41%)
@@ -72,9 +77,10 @@ looks like one that wins — so everything here is measured on both at once.
 Applied to this project's own founding premise, that produced two results, one
 of which refutes it.
 
-**Compressing intermediate features loses to sending the frame.** yolo11n at
-320px; codec rows trained on COCO val2017 and evaluated on coco128, which share
-no images:
+### The premise was wrong: compressing intermediate features loses to sending the frame
+
+yolo11n at 320px; codec rows trained on COCO val2017 and evaluated on coco128,
+which share no images:
 
 | what crosses the wire | KB/frame | mAP50-95 |
 |---|---:|---:|
@@ -90,8 +96,16 @@ of the network is smaller than the image it came from. Longer training, 50x the
 data, 4x the latent width and a measured bit allocation were each tried and each
 quantified; none of them close it.
 
-**Not sending anything wins instead.** Against the honest alternative — keep
-sending every frame, just send a worse one:
+### What wins instead: not sending anything
+
+Against the honest alternative — keep sending every frame, just send a worse one:
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/results-dark.svg">
+    <img alt="Accuracy against bytes per frame. The axonmesh cascade curve stays between mAP 0.385 and 0.448 from 0.04 to 11.2 KB per frame, while lowering JPEG quality collapses to 0.048 mAP at 3.2 KB. The two curves meet only at 11.2 KB, where every frame is sent." src="docs/assets/results-light.svg" width="100%">
+  </picture>
+</p>
 
 | KB/frame | cascade | JPEG-quality-only |
 |---:|---:|---:|
@@ -167,6 +181,8 @@ Tests build YOLO11n from its bundled YAML with random weights — no downloads,
 no GPU, no dataset. The Kubernetes e2e (`deploy/kind/e2e.sh`) builds the
 operator image and installs it with the chart on a kind cluster, because
 running it any other way hid three bugs at once.
+
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
