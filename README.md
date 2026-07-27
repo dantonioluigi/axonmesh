@@ -18,18 +18,27 @@
 </p>
 
 Serving systems answer *how fast can we serve this request*. axonmesh answers
-*whether the request should exist at all* — and proves the answer in bytes and
-accuracy before you deploy it.
+*whether the request needs the expensive model at all* — and proves the answer
+in bytes, compute and accuracy before you deploy it.
 
-Two Deployments and a gRPC call move tensors. axonmesh decides whether those
-tensors should be sent.
+A small model answers the requests it is sure of; only the rest reach the large
+one. Whatever the small model handles is bytes the network never carries **and**
+work the accelerator never does — so the *same* routing saves **bandwidth when
+the cameras are outside the cluster, and compute when they are inside it.** You
+don't choose which; you measure which one your deployment gets.
 
-**Half the bandwidth. 98% of the accuracy. Neither model retrained.**
-One run, one dataset: yolo11n escalating to yolo11m, coco128 at 320px,
-`conf_high=0.6`. 53% of frames answered on the device, 5.43 against 11.16 KB
-per frame, mAP50-95 0.440 against 0.448. The threshold is not a guess —
-`calibrate` picked it from unlabelled footage. Don't take the number on faith:
-[reproduce it in the browser](https://colab.research.google.com/github/dantonioluigi/axonmesh/blob/main/notebooks/cascade_quickstart.ipynb),
+One run, one dataset — yolo11n → yolo11m, coco128 at 320px, threshold chosen by
+`calibrate` from unlabelled footage, neither model retrained:
+
+- **Bandwidth** — 53% of frames answered locally: **5.43 against 11.16 KB per
+  frame** at mAP50-95 0.440 vs 0.448. Half the wire, 98% of the accuracy.
+- **Compute** — the large model runs only on the frames that escalate:
+  **52% of its compute avoided**, and that share is a property of the routing,
+  not the accelerator — 52% on a laptop CPU *and* on a Tesla T4, while the
+  per-inference cost collapses from 250 ms to 9 ms.
+
+Don't take either on faith:
+[reproduce both in the browser](https://colab.research.google.com/github/dantonioluigi/axonmesh/blob/main/notebooks/cascade_quickstart.ipynb),
 no GPU or device required.
 
 ## Quick start
@@ -144,9 +153,12 @@ needed nothing.
 
 The same routing has a second reading for cameras *inside* the cluster, where
 bytes are free and the accelerator is not: the large model only runs on
-escalated frames. Measured on one clock in the same run — **52% of the large
-model's compute avoided** (15.5s on 62 frames against 32.2s on all 129), with
-the small model at ~1/8 of its per-frame cost, on the cheap side of the fence.
+escalated frames, so the routing **avoids 52% of its compute** — timed on one
+clock in the same run. And that share is a property of the routing, not the
+accelerator: measured in the same configuration on a laptop CPU and a Tesla T4
+it does not move (**52% both**) while the per-inference cost collapses from
+**250 ms to 9 ms**. The saving is a decision, not a hardware trick
+([docs/cascade.md](docs/cascade.md)).
 
 Both in full, with the caveats and a pre-registered criterion that was *not*
 met: **[docs/validation.md](docs/validation.md)** · **[docs/cascade.md](docs/cascade.md)**.
@@ -161,12 +173,15 @@ question that comes *before* serving.
 | KServe · Triton · BentoML | serve a model behind an endpoint, scale it, version it | the input already arrived |
 | Ray Serve | compose and scale Python inference across a cluster | you decided what runs where |
 | vLLM · SGLang · TensorRT-LLM | make one model fast on the accelerators it is given | the work is in the cluster |
-| **axonmesh** | **decide what crosses the wire and where the work happens, priced in bytes and accuracy** | **devices outside the cluster produce the input** |
+| **axonmesh** | **decide which requests need the expensive model at all, priced in bytes, compute and accuracy** | **nothing — it produces that decision** |
 
 Put a cascade in front of KServe and both are doing their job: KServe serves
-the large model, axonmesh decides which frames ever reach it. That is a
-working path, not a diagram — `edge --escalate-url` speaks the Open Inference
-Protocol (KServe V2 / Triton) or a plain JPEG-in/JSON-out contract, and
+the large model on a GPU, axonmesh answers the easy requests with a cheap model
+first so **the GPU tier runs on half the traffic** — the same cost lever people
+already pull with LLMs (small model first, GPT-4 only when needed), here with
+the routing threshold *measured* instead of guessed and audited in production.
+That is a working path, not a diagram — `edge --escalate-url` speaks the Open
+Inference Protocol (KServe V2 / Triton) or a plain JPEG-in/JSON-out contract, and
 `--audit` keeps re-measuring, on live traffic and without labels, the
 agreement `calibrate` measured once ([docs/deployment.md](docs/deployment.md)).
 
