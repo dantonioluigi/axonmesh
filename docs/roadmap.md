@@ -36,8 +36,10 @@ choice ([cascade.md](cascade.md)).
 
 **Deployment.** Wire protocol v2 with role negotiation, `serve`/`edge`,
 Prometheus metrics, two Helm charts, a `SplitInference` operator with
-autoscaling, and a kind e2e that runs the real image
-([deployment.md](deployment.md)).
+autoscaling, and a kind e2e that runs the real image. The escalation target
+can be `axonmesh serve` or any HTTP predictor — KServe V2 / Triton or a plain
+JSON contract — verified live against a real model behind HTTP with routing
+identical to the TCP path ([deployment.md](deployment.md)).
 
 ## Next, in order
 
@@ -54,9 +56,12 @@ autoscaling, and a kind e2e that runs the real image
    and every measurement here disabled it to isolate routing. A deployment
    running for weeks is exactly where it matters and where it is unmeasured.
 
-4. **Calibration that ages.** The threshold is measured once, against footage
-   from the site. Scenes change with season, weather and time of day, and
-   nothing currently notices that the calibration has gone stale.
+4. **Recalibration, not just its alarm.** `edge --audit` now escalates a
+   fraction of confident frames and tracks live agreement against the
+   calibrated floor, so a stale threshold is *detected* without labels
+   ([cascade.md](cascade.md)). What it does not yet do is fix itself: the
+   warning says "rerun calibrate", and closing that loop automatically is
+   still open.
 
 ## Tried, measured, dropped
 
