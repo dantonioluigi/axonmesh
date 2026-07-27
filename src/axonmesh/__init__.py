@@ -81,7 +81,7 @@ from .topology import (
 from .train import TrainResult, output_error, train_bottleneck
 from .transport import Int8Transport, RawTransport
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 __all__ = [
     "AdaptivePolicy",

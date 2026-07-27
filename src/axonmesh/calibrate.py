@@ -29,6 +29,7 @@ import torch.nn as nn
 from .cascade import FrameConfidence, jpeg_roundtrip, mean_confidence
 from .measure import to_input_tensor
 from .policy import Detection
+from .train import normalize_device
 
 
 def iou(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
@@ -126,8 +127,11 @@ def probe_frames(
     from .cascade import _detections_from
     from .policy import serialize_detections
 
-    edge, cloud = edge.eval(), cloud.eval()
-    dev = torch.device(device)
+    # "0" is the ultralytics device convention and not a torch one, and the
+    # models have to live where the frames are sent — on CPU both mistakes are
+    # invisible, which is exactly how they shipped.
+    dev = torch.device(normalize_device(device))
+    edge, cloud = edge.eval().to(dev), cloud.eval().to(dev)
     probes = []
     for path in images:
         image = cv2.imread(str(path))

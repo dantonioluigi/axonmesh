@@ -27,6 +27,6 @@ spec:
     statistic: mean            # `min` escalates nearly every crowded frame
     driftThreshold: 0.5
   cloud:
-    image: ghcr.io/dantonioluigi/axonmesh-cloud:0.8.0
+    image: ghcr.io/dantonioluigi/axonmesh-cloud:0.9.0
     replicas: 2
     imgsz: 320

@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: If you use axonmesh in your work, please cite it as below.
+title: "axonmesh: an inference decision runtime for edge-cloud AI"
+type: software
+authors:
+  - family-names: "D'Antonio"
+    given-names: Luigi
+repository-code: https://github.com/dantonioluigi/axonmesh
+url: https://github.com/dantonioluigi/axonmesh
+license: MIT
+version: 0.9.0
+date-released: "2026-07-24"
+keywords:
+  - edge-ai
+  - edge-computing
+  - split-computing
+  - inference
+  - object-detection
+  - kubernetes
+abstract: >-
+  axonmesh decides whether a camera frame should cross the wire at all,
+  pricing every configuration in bytes and accuracy against the same
+  baselines before it is deployed. It includes the measured negative
+  result that compressing intermediate features loses to sending the
+  coded frame at YOLO cuts, and the measured positive one: an edge-first
+  cascade that answers confident frames on the device retains 98% of the
+  cloud model's accuracy at half the bandwidth, with its routing
+  threshold chosen from unlabelled footage.
