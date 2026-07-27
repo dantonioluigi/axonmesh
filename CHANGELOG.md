@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 — 2026-07-24
 
 **Usable as a library, not only as a CLI.** `py.typed` ships, so a consumer's
 type checker sees the annotations that were already there instead of treating
@@ -54,7 +54,7 @@ including the ones that needed nothing. See docs/cascade.md.
   a constant on a crowded scene — some box is always marginal. On coco128 it
   buys the same mAP as the mean for 12% more bandwidth.
 
-## Earlier in this cycle
+### Earlier in the same cycle
 
 **The bottleneck is trained against the head output, not just the features**
 (`train_bottleneck(task_weight=...)`, `--task-weight`, default 0.5). Half the

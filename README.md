@@ -7,6 +7,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue">
   <img alt="Status" src="https://img.shields.io/badge/status-research%20prototype-lightgrey">
+  <a href="https://colab.research.google.com/github/dantonioluigi/axonmesh/blob/main/notebooks/cascade_quickstart.ipynb"><img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg"></a>
 </p>
 
 <p align="center">
@@ -27,7 +28,9 @@ tensors should be sent.
 One run, one dataset: yolo11n escalating to yolo11m, coco128 at 320px,
 `conf_high=0.6`. 53% of frames answered on the device, 5.43 against 11.16 KB
 per frame, mAP50-95 0.440 against 0.448. The threshold is not a guess —
-`calibrate` picked it from unlabelled footage.
+`calibrate` picked it from unlabelled footage. Don't take the number on faith:
+[reproduce it in the browser](https://colab.research.google.com/github/dantonioluigi/axonmesh/blob/main/notebooks/cascade_quickstart.ipynb),
+no GPU or device required.
 
 ## Quick start
 

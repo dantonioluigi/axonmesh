@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "axonmesh"
-version = "0.8.0"
-description = "Split inference for vision models: cut a network in two, run the first half on the edge, ship quantised intermediate tensors instead of frames, and finish in the cloud."
+version = "0.9.0"
+description = "Inference decision runtime for edge-cloud AI: decide whether a frame should cross the wire at all, priced in bytes and accuracy - then run it."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Luigi D'Antonio" }]
 requires-python = ">=3.10"
-keywords = ["split-computing", "edge-computing", "inference", "quantization", "kubernetes"]
+keywords = ["edge-ai", "edge-computing", "split-computing", "inference", "object-detection", "kubernetes"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",

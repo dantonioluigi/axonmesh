@@ -6,7 +6,7 @@ description: >-
   Services and edge ConfigMaps by hand.
 type: application
 version: 0.1.0
-appVersion: "0.8.0"
+appVersion: "0.9.0"
 home: https://github.com/dantonioluigi/axonmesh
 sources:
   - https://github.com/dantonioluigi/axonmesh
