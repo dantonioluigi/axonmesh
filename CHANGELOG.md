@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**The cascade is priced in compute as well as bytes.** For cameras inside the
+cluster the internal network makes bandwidth free and the accelerator is the
+scarce resource; the cascade's other reading is that the large model only runs
+on escalated frames. `cascade` now times both models with one clock in one
+process (CUDA-synchronised on GPU, so it measures execution rather than
+launch) and reports the share of large-model compute the routing avoided —
+52% on the reference run, with the small model at ~1/8 of the large one's
+per-frame cost, reported separately because it runs on different hardware in
+the deployment the number is for. Absolute milliseconds are the measuring
+machine's; the share is routing, and transfers.
+
 **`axonmesh cascade` works on GPU.** The validator moves the host model to
 CUDA and feeds CUDA tensors, but the cascade's own edge and cloud submodules
 were never moved — `Input type (torch.cuda.FloatTensor) and weight type

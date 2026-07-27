@@ -285,6 +285,11 @@ def _cmd_cascade(args: argparse.Namespace) -> int:  # pragma: no cover - needs a
         "escalation_rate": cascade.stats.escalation_rate,
         "frames": cascade.stats.frames,
         "modes": modes,
+        "edge_seconds": cascade.stats.edge_seconds,
+        "cloud_seconds": cascade.stats.cloud_seconds,
+        "cloud_frames": cascade.stats.cloud_frames,
+        "cloud_seconds_per_inference": cascade.stats.cloud_seconds_per_inference,
+        "cloud_compute_saved": cascade.stats.cloud_compute_saved,
     }
     print(json.dumps(report, indent=2))
     print(
@@ -292,6 +297,23 @@ def _cmd_cascade(args: argparse.Namespace) -> int:  # pragma: no cover - needs a
         f"mAP50-95 {float(result.box.map):.3f}, "
         f"escalated {cascade.stats.escalation_rate:.0%} of {cascade.stats.frames} frames"
     )
+    stats = cascade.stats
+    if stats.cloud_frames:
+        # Both models timed with the same clock in this process, so the ratio
+        # is one measurement. The absolute times are this machine's, not a
+        # claim about yours -- rerun on the hardware the large model will use.
+        always = stats.cloud_seconds_per_inference * stats.frames
+        print(
+            f"large-model compute: {stats.cloud_seconds:.1f}s on {stats.cloud_frames} frames "
+            f"(vs {always:.1f}s if every frame escalated, at this run's "
+            f"{stats.cloud_seconds_per_inference * 1000:.0f} ms/inference) "
+            f"-> {stats.cloud_compute_saved:.0%} of the large model's compute avoided"
+        )
+        print(
+            f"edge-model compute: {stats.edge_seconds:.1f}s over all {stats.frames} frames "
+            f"({stats.edge_seconds / stats.frames * 1000:.0f} ms/frame) -- runs on the cheap "
+            f"side, reported separately on purpose"
+        )
     print("compare against sending every frame: axonmesh evaluate --model <cloud> --data <yaml>")
     if args.json:
         Path(args.json).write_text(json.dumps(report, indent=2))

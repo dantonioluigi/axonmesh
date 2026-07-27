@@ -86,6 +86,7 @@ and the rolling agreement are Prometheus series while the run is live.
 | how big should the codec be? | `sweep` · `allocate` | bytes vs induced output error, Pareto-marked |
 | the link quality moves? | `replan` | cut re-selection with hysteresis |
 | is the routing still safe, months later? | `edge --audit` | live agreement with the cloud on confident frames — the production continuation of `calibrate` |
+| cameras already inside the cluster? | `cascade` | share of the large model's compute the routing avoids, both models on one clock |
 | now run it | `serve` · `edge` | axonmesh's own TCP server, or any HTTP predictor via `--escalate-url` — Prometheus metrics at both ends |
 
 Full walkthrough: **[docs/usage.md](docs/usage.md)**.
@@ -141,6 +142,12 @@ mechanism is asymmetric damage: the edge answers easy frames on the *original*
 image, while lowering JPEG quality degrades every frame including the ones that
 needed nothing.
 
+The same routing has a second reading for cameras *inside* the cluster, where
+bytes are free and the accelerator is not: the large model only runs on
+escalated frames. Measured on one clock in the same run — **52% of the large
+model's compute avoided** (15.5s on 62 frames against 32.2s on all 129), with
+the small model at ~1/8 of its per-frame cost, on the cheap side of the fence.
+
 Both in full, with the caveats and a pre-registered criterion that was *not*
 met: **[docs/validation.md](docs/validation.md)** · **[docs/cascade.md](docs/cascade.md)**.
 
@@ -177,10 +184,12 @@ MobileNetV3 and ViT-B/16 split bit-identically with no code written for them.
 ## Scope
 
 It splits a network in **two** and routes between two models. There is no
-multi-hop, no device discovery, no NPU backend and no fault tolerance. And if a
-detector already runs inside your cluster with clients POSTing it frames,
-installing this changes nothing: the saving comes from work moving to the
-device, and the device has to participate.
+multi-hop, no device discovery, no NPU backend and no fault tolerance. The
+*bandwidth* saving needs cameras outside the cluster, and the device has to
+participate — traffic that already arrives as full frames is not made cheaper
+by installing anything. For cameras inside the cluster the saving is compute,
+not bytes: the small model has to run somewhere cheaper than the accelerator
+it is shielding, or there is nothing to save.
 
 ## Documentation
 

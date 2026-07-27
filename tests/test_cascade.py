@@ -6,6 +6,7 @@ import torch
 from axonmesh.cascade import (
     Cascade,
     CascadeResult,
+    CascadeStats,
     jpeg_roundtrip,
     mean_confidence,
     min_confidence,
@@ -153,3 +154,36 @@ def test_result_reports_both_axes_as_shares_of_the_cloud_endpoint():
     assert result.map_kept == pytest.approx(0.982, abs=0.005)
     assert result.bytes_saved == pytest.approx(0.525, abs=0.005)
     assert set(result.to_dict()) >= {"map_kept", "bytes_saved", "escalation_rate"}
+
+
+def test_compute_is_timed_with_one_clock_for_both_models():
+    """The in-cluster argument stands on this: edge and cloud seconds come from
+    the same clock in the same process, so their ratio is a measurement."""
+    cascade, _, _, _ = cascade_over(edge_conf=0.1, threshold=0.9, batch=2)  # all escalate
+
+    assert cascade.stats.edge_seconds > 0
+    assert cascade.stats.cloud_seconds > 0
+    assert cascade.stats.cloud_frames == 2
+    assert cascade.stats.cloud_seconds_per_inference > 0
+    assert cascade.stats.cloud_compute_saved == 0.0  # everything escalated: no saving
+
+
+def test_confident_frames_cost_the_large_model_nothing():
+    cascade, _, cloud, _ = cascade_over(edge_conf=0.95, threshold=0.5, batch=3)
+
+    assert cloud.seen == []  # never ran
+    assert cascade.stats.cloud_seconds == 0.0
+    assert cascade.stats.cloud_frames == 0
+    assert cascade.stats.cloud_compute_saved == 0.0  # nothing ran, nothing to price
+
+
+def test_compute_saved_is_the_share_of_frames_the_large_model_skipped():
+    stats = CascadeStats(
+        modes=[Mode.DETECTIONS] * 53 + [Mode.FRAME] * 47,
+        frame_bytes=[0] * 100,
+        edge_seconds=1.0,
+        cloud_seconds=4.7,
+        cloud_frames=47,
+    )
+    assert stats.cloud_compute_saved == pytest.approx(0.53)
+    assert stats.cloud_seconds_per_inference == pytest.approx(0.1)
