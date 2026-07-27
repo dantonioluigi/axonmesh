@@ -154,6 +154,14 @@ class Cascade(nn.Module):
         # ultralytics hands its backend augment/visualize/embed; a cascade has
         # no meaning for any of them, and refusing them would only mean the
         # validator cannot call it.
+        #
+        # Follow the batch to its device. The validator moves the *host* model
+        # to CUDA and feeds CUDA tensors, but these two are the cascade's own
+        # submodules and nobody else will move them — on CPU the mismatch is
+        # invisible, which is exactly how it shipped. A no-op when already
+        # there (the same pattern BottleneckTransport uses for GPU eval).
+        self.edge.to(x.device)
+        self.cloud.to(x.device)
         edge_out = primary_output(self.edge(x))
         routed = edge_out.clone()
         escalate: list[int] = []

@@ -57,6 +57,23 @@ axonmesh edge --model yolo11n.pt --images ./frames --cascade --statistic mean \
 #   24 frames -> 631.6 KB on the wire (always-JPEG 1176.6 KB, saved 46.3%)
 ```
 
+Already running KServe or Triton? Skip `axonmesh serve` and point the
+escalation at the predictor you have — and let the audit keep proving, on live
+traffic and without labels, that the routing is still safe (same 24 frames;
+the audited frames are billed, which is why the saving reads lower):
+
+```bash
+axonmesh edge --model yolo11n.pt --images ./frames \
+    --escalate-url http://predictor.internal:8080 \
+    --audit 0.25 --audit-floor 0.90 --metrics-port 9186
+#   24 frames -> 831.1 KB on the wire (always-JPEG 1176.6 KB, saved 29.4%)
+#   audit: 4 confident frames re-checked against the cloud, rolling agreement 1.000
+```
+
+`--escalate-format oip` speaks the Open Inference Protocol (KServe V2 /
+Triton); the default is a minimal JPEG-in/JSON-out contract. Routing, bytes
+and the rolling agreement are Prometheus series while the run is live.
+
 ## What it decides, and with what
 
 | you want to know | run | what you get |
@@ -69,7 +86,7 @@ axonmesh edge --model yolo11n.pt --images ./frames --cascade --statistic mean \
 | how big should the codec be? | `sweep` · `allocate` | bytes vs induced output error, Pareto-marked |
 | the link quality moves? | `replan` | cut re-selection with hysteresis |
 | is the routing still safe, months later? | `edge --audit` | live agreement with the cloud on confident frames — the production continuation of `calibrate` |
-| now run it | `serve` · `edge` | two processes, one TCP link, Prometheus metrics |
+| now run it | `serve` · `edge` | axonmesh's own TCP server, or any HTTP predictor via `--escalate-url` — Prometheus metrics at both ends |
 
 Full walkthrough: **[docs/usage.md](docs/usage.md)**.
 

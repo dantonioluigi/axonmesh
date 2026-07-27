@@ -195,3 +195,31 @@ def test_run_edge_audits_confident_frames_through_the_http_escalation(predictor,
     assert summary["audited_frames"] == len(reports)
     assert summary["audit_agreement"] == 1.0
     assert not auditor.stale
+
+
+def test_run_edge_mirrors_the_routing_into_prometheus_series(predictor, images_dir):
+    """The decision must be observable from a scraper, not only from the
+    summary printed after the run is over."""
+    from axonmesh.edge import run_edge
+    from axonmesh.server import Metrics
+    from axonmesh.stream import iter_image_frames
+
+    policy = AdaptivePolicy(conf_high=0.5, conf_low=0.1, drift=ConfidenceEMADrift(warmup=10**9))
+    auditor = AgreementAuditor(rate=1.0, floor=0.9)
+    metrics = Metrics(prefix="axonmesh_edge")
+
+    run_edge(
+        list(iter_image_frames(images_dir)),
+        lambda _: expected(),
+        policy,
+        HttpEscalation(predictor.url, fmt="json"),
+        auditor=auditor,
+        metrics=metrics,
+    )
+
+    rendered = metrics.render()
+    assert 'axonmesh_edge_frames_total{mode="detections"} 3.0' in rendered
+    assert "axonmesh_edge_audit_frames_total 3.0" in rendered
+    assert "axonmesh_edge_audit_agreement 1.0" in rendered
+    assert "axonmesh_edge_audit_stale 0.0" in rendered
+    assert 'axonmesh_edge_wire_bytes_total{mode="detections"}' in rendered

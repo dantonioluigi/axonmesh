@@ -39,6 +39,7 @@ from .protocol import (
     recv_message,
     send_message,
 )
+from .server import Metrics
 from .split import SplitRunner
 from .stream import FrameReport, Inferer
 
@@ -136,6 +137,7 @@ def run_edge(
     quality: int = 85,
     frame_confidence: FrameConfidence = min_confidence,
     auditor: AgreementAuditor | None = None,
+    metrics: Metrics | None = None,
 ) -> list[FrameReport]:
     """Drive frames through the policy against a live server; report per frame.
 
@@ -148,6 +150,12 @@ def run_edge(
     compares the cloud's answer with the edge's — the live continuation of
     what ``calibrate`` measured once. The audited frame pays for the frame it
     shipped, which is the honest cost of knowing the routing is still safe.
+
+    ``metrics`` mirrors the per-frame routing into Prometheus series as it
+    happens, so the decision is observable from Grafana rather than only from
+    the summary printed at the end: frame and byte counters per mode, and —
+    when auditing — the rolling agreement as a gauge next to the calibrated
+    floor it will one day sink below.
     """
     reports = []
     for frame_id, (name, image) in enumerate(frames):
@@ -170,6 +178,14 @@ def run_edge(
             _, nbytes = client.infer_features(image, frame_id)
         else:
             _, nbytes = client.infer_frame(image, frame_id, quality)
+        if metrics is not None:
+            metrics.inc("frames_total", mode=mode.value)
+            metrics.inc("wire_bytes_total", float(nbytes), mode=mode.value)
+            if audit_agreement is not None:
+                metrics.inc("audit_frames_total")
+            if auditor is not None and auditor.agreement is not None:
+                metrics.set("audit_agreement", auditor.agreement)
+                metrics.set("audit_stale", float(auditor.stale))
         reports.append(
             FrameReport(
                 name=name,
