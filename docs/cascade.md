@@ -54,6 +54,45 @@ locally, the edge sees the **original image**. Only escalated frames pay
 compression damage. Turning down JPEG quality degrades every frame, including
 the easy ones that needed nothing.
 
+## When the cameras are inside the cluster: the resource is compute, not bytes
+
+On an internal network the bandwidth argument evaporates — 5 KB against 11 KB
+per frame is invisible on a datacenter link. What is not free inside a cluster
+is the accelerator the large model runs on, and the cascade's other reading is
+that **the large model only runs on escalated frames**.
+
+`cascade` measures it rather than deriving it: both models are timed with the
+same clock in the same process (with a CUDA synchronise when on GPU, so kernel
+execution is measured rather than kernel launch). Same run as above — coco128
+at 320, `conf_high=0.6`, mean statistic, drift off:
+
+```
+large-model compute: 15.5s on 62 frames (vs 32.2s if every frame escalated,
+                     at this run's 250 ms/inference)
+                     -> 52% of the large model's compute avoided
+edge-model compute:  4.0s over all 129 frames (31 ms/frame)
+```
+
+The small model prices at ~1/8 of the large one per frame on this machine, and
+it is reported *separately* on purpose: in the deployment this number is for,
+the edge model runs on cheap CPU nodes in front of the accelerator, and
+folding its seconds into the saving would compare watts on one machine with
+watts on another.
+
+Honest boundaries of this number:
+
+- **The absolute times are this machine's** (a laptop CPU). The *share* —
+  52% of large-model inferences avoided — is routing, and transfers; the
+  milliseconds do not. Rerun on the hardware your large model will use; the
+  Colab notebook produces the T4 reading.
+- The per-inference cost is measured on the escalated frames themselves, which
+  on a GPU run in smaller batches than an always-escalate deployment would
+  use; batching efficiency can shift the per-inference figure in either
+  direction.
+- Serving cost is more than model forward time (preprocessing, queueing,
+  copies). This measures the model, which is the part that scales with the
+  accelerator bill.
+
 ## The statistic matters more than the thresholds
 
 `AdaptivePolicy` reduces a frame to one confidence and thresholds it. The

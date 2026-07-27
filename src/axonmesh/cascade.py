@@ -19,6 +19,7 @@ the mAP is the real one.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -68,10 +69,20 @@ def quantile_confidence(q: float = 0.25) -> FrameConfidence:
 
 @dataclass
 class CascadeStats:
-    """Per-frame routing and wire cost."""
+    """Per-frame routing, wire cost, and compute cost.
+
+    Compute is the axis that matters when the cameras are *inside* the
+    cluster: the internal network makes the bytes free, and the expensive
+    resource is the accelerator the large model runs on. Both models are timed
+    with the same clock in the same process, so the ratio between them is a
+    measurement rather than two methodologies in one sentence.
+    """
 
     modes: list[Mode] = field(default_factory=list)
     frame_bytes: list[int] = field(default_factory=list)
+    edge_seconds: float = 0.0  # small model, every frame
+    cloud_seconds: float = 0.0  # large model, escalated frames only
+    cloud_frames: int = 0  # frames the large model actually ran on
 
     @property
     def frames(self) -> int:
@@ -88,6 +99,41 @@ class CascadeStats:
     @property
     def escalation_rate(self) -> float:
         return self.escalated / self.frames if self.frames else 0.0
+
+    @property
+    def cloud_seconds_per_inference(self) -> float:
+        """What one frame costs the large model, measured on the frames it ran."""
+        return self.cloud_seconds / self.cloud_frames if self.cloud_frames else 0.0
+
+    @property
+    def cloud_compute_saved(self) -> float:
+        """Share of the large model's compute the cascade avoided.
+
+        Priced against always-escalate *with the same per-inference cost this
+        run measured*: the large model would have run on every frame, it ran
+        on ``cloud_frames``. The edge model's own cost is deliberately not
+        subtracted here — it runs on different (cheaper) hardware in the
+        deployment this number is for, and folding it in would compare watts
+        on one machine with watts on another. It is reported separately.
+        """
+        if not self.frames or not self.cloud_frames:
+            return 0.0
+        return 1.0 - self.cloud_frames / self.frames
+
+
+def _timed(module: nn.Module, x: torch.Tensor) -> tuple[torch.Tensor, float]:
+    """Run a model and clock it, synchronising when the device is asynchronous.
+
+    Without the synchronise, CUDA timing measures kernel *launch*, not kernel
+    execution, and the saving would look absurdly large.
+    """
+    if x.is_cuda:
+        torch.cuda.synchronize(x.device)
+    start = time.perf_counter()
+    out = module(x)
+    if x.is_cuda:
+        torch.cuda.synchronize(x.device)
+    return out, time.perf_counter() - start
 
 
 def _detections_from(pred: torch.Tensor, imgsz: int, conf: float, iou: float) -> list[Detection]:
@@ -162,7 +208,9 @@ class Cascade(nn.Module):
         # there (the same pattern BottleneckTransport uses for GPU eval).
         self.edge.to(x.device)
         self.cloud.to(x.device)
-        edge_out = primary_output(self.edge(x))
+        edge_raw, edge_seconds = _timed(self.edge, x)
+        self.stats.edge_seconds += edge_seconds
+        edge_out = primary_output(edge_raw)
         routed = edge_out.clone()
         escalate: list[int] = []
         received: list[torch.Tensor] = []
@@ -187,7 +235,10 @@ class Cascade(nn.Module):
             # The cloud scores what the wire delivered, not what the edge held:
             # an escalated frame has been through the codec it was charged for.
             index = torch.tensor(escalate, device=x.device)
-            routed[index] = primary_output(self.cloud(torch.stack(received)))
+            cloud_raw, cloud_seconds = _timed(self.cloud, torch.stack(received))
+            self.stats.cloud_seconds += cloud_seconds
+            self.stats.cloud_frames += len(escalate)
+            routed[index] = primary_output(cloud_raw)
         return routed
 
 
