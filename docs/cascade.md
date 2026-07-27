@@ -122,6 +122,37 @@ Agreement reads slightly *below* mAP retention because it penalises every box
 difference while mAP forgives some. For a routing decision that is the right
 direction to be wrong in.
 
+## Auditing the routing in production
+
+Calibration is a snapshot of one afternoon's footage. Scenes drift with
+season, weather and time of day, and a threshold measured then is a guess
+again six months later — silently, because a misrouted frame produces no
+error, only a worse answer nobody compares.
+
+`--audit` closes that loop with the same label-free agreement the calibration
+is built on: a fraction of the frames the edge would answer *locally* is
+escalated as well, and the cloud's answer is compared with the edge's. The
+rolling agreement is directly comparable with the number `calibrate` reported
+for the chosen threshold, which is what `--audit-floor` should be set to:
+
+```bash
+axonmesh edge --model yolo11n.pt --images ./frames \
+    --escalate-url http://kserve.internal/detector \
+    --conf-high 0.6 --statistic mean \
+    --audit 0.05 --audit-floor 0.95        # calibrate reported 0.951
+```
+
+```
+audit: 4 confident frames re-checked against the cloud, rolling agreement 1.000 (calibrated floor 0.9)
+```
+
+When the rolling agreement sinks below the floor — judged over a window, not
+on a single frame — the scene has moved and the warning says to recalibrate.
+The audited frames pay for the frames they ship, and the accounting charges
+them honestly: on the 24-frame live run, a 25% audit rate cost ~200 KB over
+the baseline cascade. That is the price of knowing the saving is still safe,
+and it is a dial.
+
 ## Honest notes
 
 - **The bar set before running was not met as written.** The criterion was

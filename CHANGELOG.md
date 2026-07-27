@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+**The cascade now fronts the serving stack you already run.** `edge
+--escalate-url` escalates to any HTTP predictor instead of `axonmesh serve`:
+the Open Inference Protocol REST API (KServe V2 / Triton, the frame as a
+base64 BYTES tensor — verified against a conformance stub, and billed for the
+4/3 base64 inflation the REST form really costs) or a minimal JPEG-in/JSON-out
+contract. Measured live against a real yolo11m behind HTTP on the same 24
+frames as the TCP run: identical routing, same bytes to within the audit's own
+cost. axonmesh does not replace the serving layer; it decides which frames
+ever reach it.
+
+**`edge --audit` re-measures in production what `calibrate` measured once.**
+A fraction of the frames the edge would answer locally is escalated anyway and
+the cloud's answer compared with the edge's — the same label-free agreement
+the calibration sweep is built on, now as a rolling live number against
+`--audit-floor` (set it to the agreement calibrate reported). Judged over a
+window, not a frame; the audited frames' bytes are charged honestly. A stale
+threshold is now detected instead of silently misrouting; recalibrating
+automatically remains open (docs/roadmap.md).
+
+Found by writing the live path: nothing. Found by the accounting: the audit's
+cost is visible — 25% audit rate on the 24-frame run cost ~200 KB, the price
+of knowing the saving is still safe.
+
 ## 0.9.0 — 2026-07-24
 
 **Usable as a library, not only as a CLI.** `py.typed` ships, so a consumer's

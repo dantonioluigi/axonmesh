@@ -620,9 +620,16 @@ def _cmd_serve(args: argparse.Namespace) -> int:  # pragma: no cover - blocks fo
 def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a live server
     from .cascade import mean_confidence, min_confidence, quantile_confidence
     from .edge import EdgeClient, run_edge
+    from .escalation import AgreementAuditor, HttpEscalation
     from .policy import AdaptivePolicy, ConfidenceEMADrift
     from .protocol import Role
     from .stream import iter_image_frames, summarize_stream, yolo_inferer
+
+    if bool(args.host) == bool(args.escalate_url):
+        raise SystemExit(
+            "give exactly one escalation target: --host (axonmesh serve) "
+            "or --escalate-url (an HTTP predictor such as KServe/Triton)"
+        )
 
     statistics = {"min": min_confidence, "mean": mean_confidence, "q25": quantile_confidence(0.25)}
     yolo = _load_yolo(args.model)
@@ -631,15 +638,20 @@ def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a li
         conf_low=args.conf_low,
         drift=ConfidenceEMADrift(threshold=args.drift_threshold),
     )
-    with EdgeClient(
-        args.host,
-        args.port,
-        yolo.model,
-        cut=args.cut,
-        bottleneck=_load_optional_bottleneck(args.bottleneck),
-        imgsz=args.imgsz,
-        role=Role.CASCADE if args.cascade else Role.SPLIT,
-    ) as client:
+    auditor = AgreementAuditor(rate=args.audit, floor=args.audit_floor) if args.audit > 0 else None
+    if args.escalate_url:
+        client = HttpEscalation(args.escalate_url, fmt=args.escalate_format, model=args.oip_model)
+    else:
+        client = EdgeClient(
+            args.host,
+            args.port,
+            yolo.model,
+            cut=args.cut,
+            bottleneck=_load_optional_bottleneck(args.bottleneck),
+            imgsz=args.imgsz,
+            role=Role.CASCADE if args.cascade else Role.SPLIT,
+        )
+    try:
         reports = run_edge(
             iter_image_frames(args.images, limit=args.limit),
             yolo_inferer(yolo, imgsz=args.imgsz, conf=args.conf),
@@ -647,13 +659,28 @@ def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a li
             client,
             quality=args.quality,
             frame_confidence=statistics[args.statistic],
+            auditor=auditor,
         )
+    finally:
+        client.close()
     summary = summarize_stream(reports)
     print(
         f"{summary['frames']:.0f} frames -> {_kb(summary['total_bytes'])} KB on the wire "
         f"(always-JPEG {_kb(summary['baseline_jpeg_bytes'])} KB, "
         f"saved {summary['saved_vs_jpeg']:.1%})"
     )
+    if auditor is not None and auditor.agreement is not None:
+        summary["audit_stale"] = auditor.stale
+        print(
+            f"audit: {auditor.samples} confident frames re-checked against the cloud, "
+            f"rolling agreement {auditor.agreement:.3f}"
+            + (f" (calibrated floor {args.audit_floor})" if args.audit_floor else "")
+        )
+        if auditor.stale:
+            print(
+                "WARNING: agreement fell below the calibrated floor — the scene has "
+                "moved since calibration; rerun `axonmesh calibrate` on current footage"
+            )
     if args.json:
         Path(args.json).write_text(json.dumps(summary, indent=2))
     return 0
@@ -894,7 +921,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_edge = sub.add_parser("edge", help="stream frames to a live cloud half")
     common(p_edge)
     p_edge.add_argument("--images", required=True, help="directory of frames")
-    p_edge.add_argument("--host", required=True, help="cloud half address")
+    p_edge.add_argument("--host", default=None, help="axonmesh serve address (TCP wire protocol)")
     p_edge.add_argument("--port", type=int, default=9095)
     p_edge.add_argument("--cut", type=int, default=None, help=_CUT_HELP)
     p_edge.add_argument("--bottleneck", default=None, help="trained bottleneck checkpoint")
@@ -917,6 +944,34 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["min", "mean", "q25"],
         help="how a frame's detections become one confidence; min escalates almost "
         "everything on crowded scenes (see docs/cascade.md)",
+    )
+    p_edge.add_argument(
+        "--escalate-url",
+        default=None,
+        help="escalate to an HTTP predictor instead of axonmesh serve — put the "
+        "cascade in front of the serving stack you already run",
+    )
+    p_edge.add_argument(
+        "--escalate-format",
+        default="json",
+        choices=["json", "oip"],
+        help="json: raw JPEG in, {detections: [[x1,y1,x2,y2,conf,cls]]} out; "
+        "oip: Open Inference Protocol REST (KServe V2 / Triton), contract in docs/deployment.md",
+    )
+    p_edge.add_argument("--oip-model", default="detector", help="model name in the OIP URL path")
+    p_edge.add_argument(
+        "--audit",
+        type=float,
+        default=0.0,
+        help="fraction of confident frames escalated anyway, to measure live agreement "
+        "with the cloud — the production continuation of `calibrate`",
+    )
+    p_edge.add_argument(
+        "--audit-floor",
+        type=float,
+        default=None,
+        help="warn when rolling agreement falls below this (use the agreement "
+        "`calibrate` reported for your threshold)",
     )
     p_edge.set_defaults(func=_cmd_edge)
 

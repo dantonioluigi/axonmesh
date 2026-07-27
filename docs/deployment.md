@@ -113,7 +113,7 @@ spec:
 Declaring `escalateTo` makes it a **cascade** instead — the operator writes
 `role=cascade` into the edge ConfigMap and passes `--escalate-to` to the cloud,
 so the winning configuration is as declarative as the split one
-([operator/examples/cascade.yaml](operator/examples/cascade.yaml)):
+([operator/examples/cascade.yaml](../operator/examples/cascade.yaml)):
 
 ```yaml
 spec:
@@ -132,3 +132,39 @@ CRD + RBAC from `operator/manifests/`, run the operator (image in
 `operator/Dockerfile`), and `kubectl apply` the resource. The reconcile logic
 is pure and unit-tested; `deploy/kind/e2e.sh` exercises it end-to-end on a kind
 cluster (also run in CI).
+
+## Fronting the serving stack you already run
+
+A team on KServe, Triton or any HTTP predictor should not have to adopt a
+bespoke TCP server to get the cascade. `--escalate-url` makes the escalation
+target an HTTP endpoint; axonmesh then does the one thing the serving stack
+does not — decide which frames ever reach it:
+
+```bash
+axonmesh edge --model yolo11n.pt --images ./frames \
+    --escalate-url http://kserve.internal/v1/models/detector \
+    --statistic mean --conf-high 0.6
+```
+
+Two wire formats:
+
+- `--escalate-format json` — the frame as a raw `image/jpeg` body; the
+  response as `{"detections": [[x1, y1, x2, y2, conf, cls], ...]}` with
+  coordinates normalised to `[0, 1]`. The smallest possible contract for a
+  custom predictor.
+- `--escalate-format oip` — the Open Inference Protocol REST API (KServe V2 /
+  Triton): the frame travels as a base64 `BYTES` tensor named `image` to
+  `{url}/v2/models/{name}/infer`, and the first output tensor is read as
+  `[N, 6]` rows of `x1, y1, x2, y2, conf, cls`, normalised. That tensor
+  contract is this project's, not the protocol's — the predictor or
+  transformer behind the endpoint decodes the JPEG and emits it.
+
+Two honesty notes. The OIP path is verified against a conformance stub of the
+protocol in the test suite, not against a live KServe. And base64 inflates the
+frame by a third — the byte accounting charges for it, because the REST form
+of the protocol really does cost 4/3 of the JPEG (the binary extension avoids
+this and is not implemented here).
+
+Measured live against a real yolo11m behind the `json` contract, same 24
+frames and threshold as the TCP run: **identical routing** (11 answered on the
+device, 13 escalated) and the same bytes to within the audit's own cost.

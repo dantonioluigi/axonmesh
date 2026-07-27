@@ -68,6 +68,7 @@ axonmesh edge --model yolo11n.pt --images ./frames --cascade --statistic mean \
 | what does it cost on the device? | `benchmark` | per-stage latency, FPS, power |
 | how big should the codec be? | `sweep` · `allocate` | bytes vs induced output error, Pareto-marked |
 | the link quality moves? | `replan` | cut re-selection with hysteresis |
+| is the routing still safe, months later? | `edge --audit` | live agreement with the cloud on confident frames — the production continuation of `calibrate` |
 | now run it | `serve` · `edge` | two processes, one TCP link, Prometheus metrics |
 
 Full walkthrough: **[docs/usage.md](docs/usage.md)**.
@@ -138,8 +139,12 @@ question that comes *before* serving.
 | vLLM · SGLang · TensorRT-LLM | make one model fast on the accelerators it is given | the work is in the cluster |
 | **axonmesh** | **decide what crosses the wire and where the work happens, priced in bytes and accuracy** | **devices outside the cluster produce the input** |
 
-Put a cascade behind KServe and both are doing their job: KServe serves the
-large model, axonmesh decides which frames ever reach it.
+Put a cascade in front of KServe and both are doing their job: KServe serves
+the large model, axonmesh decides which frames ever reach it. That is a
+working path, not a diagram — `edge --escalate-url` speaks the Open Inference
+Protocol (KServe V2 / Triton) or a plain JPEG-in/JSON-out contract, and
+`--audit` keeps re-measuring, on live traffic and without labels, the
+agreement `calibrate` measured once ([docs/deployment.md](docs/deployment.md)).
 
 ## Not a `model[:k]` slice, and not only YOLO
 

@@ -20,6 +20,7 @@ import torch.nn as nn
 
 from .bottleneck import Bottleneck
 from .cascade import FrameConfidence, min_confidence
+from .escalation import AgreementAuditor
 from .measure import jpeg_nbytes, to_input_tensor
 from .policy import (
     AdaptivePolicy,
@@ -134,6 +135,7 @@ def run_edge(
     client: EdgeClient,
     quality: int = 85,
     frame_confidence: FrameConfidence = min_confidence,
+    auditor: AgreementAuditor | None = None,
 ) -> list[FrameReport]:
     """Drive frames through the policy against a live server; report per frame.
 
@@ -141,6 +143,11 @@ def run_edge(
     policy thresholds. The default — the least confident detection — suits a
     scene holding a few known objects; on a crowded one it is near-constant and
     escalates everything, which is measured in ``docs/cascade.md``.
+
+    ``auditor`` escalates a fraction of the *confident* frames anyway and
+    compares the cloud's answer with the edge's — the live continuation of
+    what ``calibrate`` measured once. The audited frame pays for the frame it
+    shipped, which is the honest cost of knowing the routing is still safe.
     """
     reports = []
     for frame_id, (name, image) in enumerate(frames):
@@ -152,8 +159,13 @@ def run_edge(
             # this one's activations — shipping them would be answered by the
             # wrong half and cost more than the frame. Escalate as a frame.
             mode = Mode.FRAME
+        audit_agreement = None
         if mode is Mode.DETECTIONS:
             nbytes = client.send_detections(detections, frame_id)
+            if auditor is not None and auditor.should_audit():
+                cloud_dets, audit_bytes = client.infer_frame(image, frame_id, quality)
+                audit_agreement = auditor.record(detections, cloud_dets)
+                nbytes += audit_bytes
         elif mode is Mode.FEATURES:
             _, nbytes = client.infer_features(image, frame_id)
         else:
@@ -167,6 +179,7 @@ def run_edge(
                 frame_conf=decision.frame_conf,
                 retrain=decision.retrain,
                 reason=decision.reason,
+                audit_agreement=audit_agreement,
             )
         )
     return reports

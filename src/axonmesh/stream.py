@@ -33,6 +33,9 @@ class FrameReport:
     frame_conf: float | None
     retrain: bool
     reason: str
+    # Set when this locally-answered frame was audited: how much the cloud
+    # agreed with the edge's answer, in [0, 1]. None = not audited.
+    audit_agreement: float | None = None
 
 
 def simulate_stream(
@@ -81,6 +84,10 @@ def summarize_stream(reports: list[FrameReport]) -> dict[str, float]:
     }
     for mode in Mode:
         summary[f"frames_{mode.value}"] = sum(r.mode is mode for r in reports)
+    audited = [r.audit_agreement for r in reports if r.audit_agreement is not None]
+    summary["audited_frames"] = len(audited)
+    if audited:
+        summary["audit_agreement"] = sum(audited) / len(audited)
     return summary
 
 
