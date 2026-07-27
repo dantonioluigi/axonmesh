@@ -639,6 +639,13 @@ def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a li
         drift=ConfidenceEMADrift(threshold=args.drift_threshold),
     )
     auditor = AgreementAuditor(rate=args.audit, floor=args.audit_floor) if args.audit > 0 else None
+    metrics = None
+    if args.metrics_port:
+        from .server import Metrics, start_metrics_server
+
+        metrics = Metrics(prefix="axonmesh_edge")
+        start_metrics_server(metrics, args.metrics_port, host="0.0.0.0")
+        print(f"edge metrics on :{args.metrics_port}/metrics")
     if args.escalate_url:
         client = HttpEscalation(args.escalate_url, fmt=args.escalate_format, model=args.oip_model)
     else:
@@ -660,6 +667,7 @@ def _cmd_edge(args: argparse.Namespace) -> int:  # pragma: no cover - needs a li
             quality=args.quality,
             frame_confidence=statistics[args.statistic],
             auditor=auditor,
+            metrics=metrics,
         )
     finally:
         client.close()
@@ -965,6 +973,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.0,
         help="fraction of confident frames escalated anyway, to measure live agreement "
         "with the cloud — the production continuation of `calibrate`",
+    )
+    p_edge.add_argument(
+        "--metrics-port",
+        type=int,
+        default=None,
+        help="expose the routing as Prometheus series while the run is live: "
+        "frames and bytes per mode, rolling audit agreement as a gauge",
     )
     p_edge.add_argument(
         "--audit-floor",

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**`axonmesh cascade` works on GPU.** The validator moves the host model to
+CUDA and feeds CUDA tensors, but the cascade's own edge and cloud submodules
+were never moved — `Input type (torch.cuda.FloatTensor) and weight type
+(torch.FloatTensor)` on the first warmup batch. Found by a user running the
+Colab quickstart on a T4, invisible on CPU, which is the only place it had
+run; the same lazy follow-the-batch move the transports already use.
+
+**The edge's routing is observable while it happens.** `edge --metrics-port`
+exposes Prometheus series live: frames and bytes per mode, audited-frame
+count, and the rolling audit agreement as a *gauge* (`Metrics.set` — a level,
+not a total; accumulating it would graph a meaningless number) with
+`audit_stale` beside it. Verified by scraping a live run mid-flight.
+
 **The cascade now fronts the serving stack you already run.** `edge
 --escalate-url` escalates to any HTTP predictor instead of `axonmesh serve`:
 the Open Inference Protocol REST API (KServe V2 / Triton, the frame as a

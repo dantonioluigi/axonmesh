@@ -242,3 +242,17 @@ def test_a_cascade_server_refuses_features_loudly(cascade_server, det_model, bgr
         pytest.raises(ProtocolError),
     ):
         client.infer_features(bgr_image, frame_id=1)
+
+
+def test_metrics_gauge_holds_the_last_value_instead_of_accumulating():
+    """A rolling agreement is a level, not a total: rendering a running sum
+    would graph a number that means nothing."""
+    metrics = Metrics(prefix="axonmesh_edge")
+    metrics.set("audit_agreement", 0.9)
+    metrics.set("audit_agreement", 0.7)
+    metrics.inc("frames_total", mode="detections")
+    metrics.inc("frames_total", mode="detections")
+
+    rendered = metrics.render()
+    assert "axonmesh_edge_audit_agreement 0.7" in rendered  # last write, not 1.6
+    assert 'axonmesh_edge_frames_total{mode="detections"} 2.0' in rendered

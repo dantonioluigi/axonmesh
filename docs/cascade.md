@@ -148,6 +148,10 @@ audit: 4 confident frames re-checked against the cloud, rolling agreement 1.000 
 
 When the rolling agreement sinks below the floor — judged over a window, not
 on a single frame — the scene has moved and the warning says to recalibrate.
+With `--metrics-port` the same number is a Prometheus gauge
+(`axonmesh_edge_audit_agreement`, with `audit_stale` beside it), so it lives
+in Grafana next to the per-mode frame and byte counters instead of only in a
+summary printed after the fact.
 The audited frames pay for the frames they ship, and the accounting charges
 them honestly: on the 24-frame live run, a 25% audit rate cost ~200 KB over
 the baseline cascade. That is the price of knowing the saving is still safe,

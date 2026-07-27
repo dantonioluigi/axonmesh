@@ -60,6 +60,16 @@ class Metrics:
         with self._lock:
             self._counters[key] = self._counters.get(key, 0.0) + value
 
+    def set(self, name: str, value: float, **labels: str) -> None:
+        """Gauge semantics: the series holds the last written value.
+
+        A rolling agreement is a level, not a total — accumulating it would
+        render a number that means nothing to the person reading the graph.
+        """
+        key = (name, tuple(sorted(labels.items())))
+        with self._lock:
+            self._counters[key] = value
+
     def render(self) -> str:
         lines = []
         with self._lock:
