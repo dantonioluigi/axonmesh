@@ -83,8 +83,7 @@ Honest boundaries of this number:
 
 - **The absolute times are this machine's** (a laptop CPU). The *share* —
   52% of large-model inferences avoided — is routing, and transfers; the
-  milliseconds do not. Rerun on the hardware your large model will use; the
-  Colab notebook produces the T4 reading.
+  milliseconds do not.
 - The per-inference cost is measured on the escalated frames themselves, which
   on a GPU run in smaller batches than an always-escalate deployment would
   use; batching efficiency can shift the per-inference figure in either
@@ -92,6 +91,31 @@ Honest boundaries of this number:
 - Serving cost is more than model forward time (preprocessing, queueing,
   copies). This measures the model, which is the part that scales with the
   accelerator bill.
+
+### Confirmed on a GPU
+
+Rerun on a Tesla T4 (the Colab quickstart), the share holds and the
+per-inference time collapses — which is the whole claim, demonstrated rather
+than asserted. This is the same `--no-drift` configuration as the reference row
+above, so the two machines are directly comparable:
+
+| machine | escalation | large-model compute avoided | ms / inference |
+|---|---:|---:|---:|
+| laptop CPU | 48% | 52% | 250 |
+| Tesla T4 | 48% | 52% | 9 |
+
+The routing avoids **52% of the large model's work on both machines** — the
+share does not move at all — while the per-inference cost drops ~28x. The edge
+model on the T4 runs at 12 ms/frame, still a fraction of the large model: the
+triage stays cheap relative to what it shields. This is the load-bearing
+result behind "the saving is a decision, not a hardware trick": run it on the
+accelerator you will deploy on and the *share* is what you keep, whatever the
+milliseconds do.
+
+With drift left on (a live deployment, more escalations) the same pair reads
+47% (CPU) and 46% (T4) — less compute avoided because more frames escalate, and
+still matched across the hardware. Pass `--no-drift` to reproduce the table
+above, leave it on for a number closer to production.
 
 ## The statistic matters more than the thresholds
 

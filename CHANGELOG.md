@@ -10,8 +10,22 @@ process (CUDA-synchronised on GPU, so it measures execution rather than
 launch) and reports the share of large-model compute the routing avoided —
 52% on the reference run, with the small model at ~1/8 of the large one's
 per-frame cost, reported separately because it runs on different hardware in
-the deployment the number is for. Absolute milliseconds are the measuring
-machine's; the share is routing, and transfers.
+the deployment the number is for.
+
+Confirmed on a Tesla T4, matched to the reference row (`--no-drift`): the
+routing avoids **52% of the large model's compute on both a laptop CPU and the
+T4** — the share does not move — while per-inference cost drops ~28x (250 ms ->
+9 ms). The share is the routing's, the milliseconds are the machine's, and both
+are now measured rather than asserted. (Drift-on, closer to production, the
+pair reads 47%/46% — less avoided because more escalates, still matched.)
+
+The README now gives the compute reading equal billing with bandwidth instead
+of a footnote: the small model answers roughly half the requests, which is half
+the bytes on the wire *and* half the accelerator's work, so the same routing
+saves bandwidth when the cameras are outside the cluster and compute when they
+are inside it. Positioned next to KServe as the cost lever people already pull
+with LLMs — cheap model first, expensive one only when needed — with the
+routing threshold measured instead of guessed.
 
 **`axonmesh cascade` works on GPU.** The validator moves the host model to
 CUDA and feeds CUDA tensors, but the cascade's own edge and cloud submodules
