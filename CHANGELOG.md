@@ -19,13 +19,18 @@ T4** — the share does not move — while per-inference cost drops ~28x (250 ms
 are now measured rather than asserted. (Drift-on, closer to production, the
 pair reads 47%/46% — less avoided because more escalates, still matched.)
 
-The README now gives the compute reading equal billing with bandwidth instead
-of a footnote: the small model answers roughly half the requests, which is half
-the bytes on the wire *and* half the accelerator's work, so the same routing
-saves bandwidth when the cameras are outside the cluster and compute when they
-are inside it. Positioned next to KServe as the cost lever people already pull
-with LLMs — cheap model first, expensive one only when needed — with the
-routing threshold measured instead of guessed.
+The README now leads with the compute reading, and frames it as capacity: the
+large model — the one that needs the accelerator — runs on 48% of frames, so
+the expensive tier serves the same stream on ~half the GPUs or twice the stream
+on the GPUs you have. `docs/cascade.md` states plainly what that 52% is and is
+not: it is an inference count (what fills an accelerator and sets how many you
+buy, hardware-independent because it is a routing decision), not a per-request
+latency claim, which on a GPU is batch-bound rather than model-bound. The
+throughput saving is real only when the small model runs on cheaper hardware
+than the accelerator it shields — a CPU tier in front of the GPU, spelled out.
+Positioned next to KServe as the cost lever LLM stacks already pull — cheap
+model first, expensive one only when needed — with the routing threshold
+measured instead of guessed.
 
 **`axonmesh cascade` works on GPU.** The validator moves the host model to
 CUDA and feeds CUDA tensors, but the cascade's own edge and cloud submodules
