@@ -79,18 +79,38 @@ the edge model runs on cheap CPU nodes in front of the accelerator, and
 folding its seconds into the saving would compare watts on one machine with
 watts on another.
 
-Honest boundaries of this number:
+### What the 52% is, and what it is not
 
-- **The absolute times are this machine's** (a laptop CPU). The *share* —
-  52% of large-model inferences avoided — is routing, and transfers; the
-  milliseconds do not.
-- The per-inference cost is measured on the escalated frames themselves, which
-  on a GPU run in smaller batches than an always-escalate deployment would
-  use; batching efficiency can shift the per-inference figure in either
-  direction.
-- Serving cost is more than model forward time (preprocessing, queueing,
-  copies). This measures the model, which is the part that scales with the
-  accelerator bill.
+The load-bearing quantity is the **inference count**: the large model runs on
+48% of the frames instead of 100%, so 52% of its forward passes never happen.
+That is what maps to a GPU bill — the number of large-model inferences per
+second is what fills an accelerator and sets how many you buy — and it is
+hardware-independent, because it is a routing decision, not a timing. At the
+same input rate the expensive tier needs ~half the accelerator-seconds; on a
+fixed GPU pool it serves ~twice the input rate.
+
+It is **not** a claim that each request is half as fast. Per-request latency on
+a GPU is dominated by batch size and utilisation, not by which of the two
+models ran — at batch 1 both are launch-bound and time about the same, at large
+batch the FLOP difference reappears. The saving is throughput and capacity (how
+much accelerator you need for a given stream), which is the axis GPU cost
+actually lives on; it is not a per-frame latency reduction, and the numbers
+here do not pretend to be one.
+
+Two more honest boundaries:
+
+- **The absolute times are the measuring machine's**; only the share transfers
+  (below).
+- Serving cost is more than model forward time — preprocessing, queueing,
+  copies. This measures the forward pass, the part that scales with the number
+  of accelerators.
+
+For the throughput saving to be real the small model has to run on cheaper
+hardware than the accelerator it shields — a CPU tier in front of the GPU. Run
+both on the same GPU and you have added the small model's load to the
+accelerator instead of removing the large model's; it is still a net win
+(yolo11n is ~4x fewer FLOPs than yolo11m, and it replaces yolo11m on 52% of
+frames) but a smaller one, and a different calculation than the one above.
 
 ### Confirmed on a GPU
 

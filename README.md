@@ -30,14 +30,21 @@ don't choose which; you measure which one your deployment gets.
 One run, one dataset — yolo11n → yolo11m, coco128 at 320px, threshold chosen by
 `calibrate` from unlabelled footage, neither model retrained:
 
-- **Bandwidth** — 53% of frames answered locally: **5.43 against 11.16 KB per
-  frame** at mAP50-95 0.440 vs 0.448. Half the wire, 98% of the accuracy.
-- **Compute** — the large model runs only on the frames that escalate:
-  **52% of its compute avoided**, and that share is a property of the routing,
-  not the accelerator — 52% on a laptop CPU *and* on a Tesla T4, while the
-  per-inference cost collapses from 250 ms to 9 ms.
+- **GPU compute** — the large model is the one that needs the accelerator, and
+  it runs on only the 48% of frames that escalate: **52% of its inferences
+  avoided**, at 98% of its accuracy. That is capacity, not a micro-benchmark —
+  the expensive tier serves the same stream on **~half the GPUs**, or twice the
+  stream on the GPUs you have. And the share is the routing's, not the
+  hardware's: **52% on a laptop CPU and 52% on a Tesla T4**, unchanged while the
+  per-inference cost drops 28x (250 ms → 9 ms).
+- **Bandwidth** — when the cameras are outside the cluster, the frames that skip
+  the GPU also skip the network: **5.43 against 11.16 KB per frame** at
+  mAP50-95 0.440 vs 0.448. Half the wire, 98% of the accuracy.
 
-Don't take either on faith:
+It is the cost lever LLM stacks already pull — a cheap model first, the
+expensive one only when it is needed — brought to vision, with the routing
+threshold **measured instead of guessed** and audited in production. Don't take
+either number on faith:
 [reproduce both in the browser](https://colab.research.google.com/github/dantonioluigi/axonmesh/blob/main/notebooks/cascade_quickstart.ipynb),
 no GPU or device required.
 
