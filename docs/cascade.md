@@ -54,7 +54,13 @@ locally, the edge sees the **original image**. Only escalated frames pay
 compression damage. Turning down JPEG quality degrades every frame, including
 the easy ones that needed nothing.
 
-## When the cameras are inside the cluster: the resource is compute, not bytes
+## Onsen: when the cameras are inside the cluster, the GPU soaks
+
+*The GPU's hot spring — the accelerator soaks while the edge handles the easy
+frames.* The name is a mnemonic; the number under it is the point: on the
+reference run the large model does **52% fewer inferences** (`--no-drift`,
+confirmed on a laptop CPU and a Tesla T4). The metaphor rests on that
+measurement, not the other way round.
 
 On an internal network the bandwidth argument evaporates — 5 KB against 11 KB
 per frame is invisible on a datacenter link. What is not free inside a cluster

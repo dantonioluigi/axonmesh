@@ -36,7 +36,8 @@ One run, one dataset — yolo11n → yolo11m, coco128 at 320px, threshold chosen
   the expensive tier serves the same stream on **~half the GPUs**, or twice the
   stream on the GPUs you have. And the share is the routing's, not the
   hardware's: **52% on a laptop CPU and 52% on a Tesla T4**, unchanged while the
-  per-inference cost drops 28x (250 ms → 9 ms).
+  per-inference cost drops 28x (250 ms → 9 ms). The edge does the easy frames;
+  the GPU soaks — call it the [onsen](docs/cascade.md#onsen-when-the-cameras-are-inside-the-cluster-the-gpu-soaks).
 - **Bandwidth** — when the cameras are outside the cluster, the frames that skip
   the GPU also skip the network: **5.43 against 11.16 KB per frame** at
   mAP50-95 0.440 vs 0.448. Half the wire, 98% of the accuracy.
