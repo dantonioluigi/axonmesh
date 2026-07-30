@@ -1,0 +1,18 @@
+axonmesh
+Copyright 2026 Luigi D'Antonio
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party dependencies carry their own licenses. One is copyleft and worth
+calling out here rather than leaving to be discovered:
+
+  ultralytics (>= 8.3) is licensed under AGPL-3.0-or-later.
+
+axonmesh's own code is Apache-2.0, but the default install and every measured
+result in this repository use ultralytics through the YOLO adapter. Combining
+or distributing axonmesh with ultralytics, or offering it as a network service,
+subjects that combination to the AGPL-3.0 — the permissive license on this
+project's own files does not change that. The `torch.fx` backend
+(`axonmesh.adapters.fx`) does not import ultralytics; a deployment restricted
+to it, with ultralytics not installed, is not bound by the AGPL. See the
+Licensing section of README.md.

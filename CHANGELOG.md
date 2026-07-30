@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**Relicensed from MIT to Apache-2.0.** Same permissive family, but Apache-2.0
+carries an explicit patent grant and is the licence the CNCF/serving ecosystem
+this project positions next to expects. A solo pre-release repo relicenses
+cleanly — one copyright holder, no released artifacts under the old terms.
+
+**The AGPL dependency is now stated, not buried.** ultralytics (the YOLO
+backend, a core dependency) is AGPL-3.0-or-later, so distributing or
+network-serving axonmesh with it subjects the combination to the AGPL —
+Apache-2.0 on this project's own files does not lift that. README's Licensing
+section and NOTICE say so plainly, with the AGPL-free `torch.fx` route, the
+ultralytics enterprise licence, and a permissive detector as the three exits.
+A permissive badge over an undisclosed copyleft core is the kind of surprise
+this project does not trade in.
+
+
 **The cascade is priced in compute as well as bytes.** For cameras inside the
 cluster the internal network makes bandwidth free and the accelerator is the
 scarce resource; the cascade's other reading is that the large model only runs

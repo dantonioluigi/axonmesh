@@ -7,14 +7,14 @@ name = "axonmesh"
 version = "0.9.0"
 description = "Inference decision runtime for edge-cloud AI: decide whether a frame should cross the wire at all, priced in bytes and accuracy - then run it."
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 authors = [{ name = "Luigi D'Antonio" }]
 requires-python = ">=3.10"
 keywords = ["edge-ai", "edge-computing", "split-computing", "inference", "object-detection", "kubernetes"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
