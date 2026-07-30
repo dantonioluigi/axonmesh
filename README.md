@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/dantonioluigi/axonmesh/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/dantonioluigi/axonmesh/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue">
   <img alt="Status" src="https://img.shields.io/badge/status-research%20prototype-lightgrey">
   <a href="https://colab.research.google.com/github/dantonioluigi/axonmesh/blob/main/notebooks/cascade_quickstart.ipynb"><img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg"></a>
@@ -242,4 +242,21 @@ Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+axonmesh's own code is **Apache-2.0** — see [LICENSE](LICENSE) and
+[NOTICE](NOTICE). The patent grant and the ecosystem it shares with the
+serving stacks above are why it is Apache rather than MIT.
+
+**One dependency is copyleft, and it is a core one.** The default install and
+every measured result here use **ultralytics** (the YOLO backend), which is
+**AGPL-3.0-or-later**. Your use of *this* project's code is Apache-2.0, but
+combining or distributing it with ultralytics — or serving it over a network,
+which the `serve`/operator path does — subjects that combination to the
+AGPL-3.0. A permissive licence on our files does not lift that; it is the
+dependency's licence, and it travels.
+
+If the AGPL does not suit you, three honest routes: install only the
+`torch.fx` backend (`axonmesh.adapters.fx` does not import ultralytics — a
+deployment without ultralytics is not AGPL-bound, though it also does not run
+the YOLO models the benchmarks use), obtain an
+[ultralytics enterprise licence](https://www.ultralytics.com/license), or use
+a permissively licensed detector behind the adapter contract.
